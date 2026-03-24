@@ -217,17 +217,20 @@ export async function runPipeline(
   logs.push(`[AXION] ${axion.length} intelligence posts — mode: ${outputMode}`);
   logs.push(`[BLACK DOG] risk level: ${blackDog.level} (${blackDog.score})`);
 
-  // Mode-aware minimum count
-  const minCount = outputMode === "SINGLE_SIGNAL" || outputMode === "BREAKING_ALERT" ? 1
+  // Mode-aware minimums
+  const minSentrix = outputMode === "SINGLE_SIGNAL" || outputMode === "BREAKING_ALERT" ? 1
     : outputMode === "RAPID_FIRE" ? 2
-    : outputMode === "LONGFORM_INTEL" ? 3
-    : 3; // THREAD default
+    : 3; // THREAD / LONGFORM default
+
+  const minAxion = outputMode === "SINGLE_SIGNAL" || outputMode === "BREAKING_ALERT" ? 1
+    : outputMode === "RAPID_FIRE" ? 2
+    : 3; // THREAD / LONGFORM default
 
   let blockedReason = "";
-  if (sentrix.length < 3) {
-    blockedReason = `Only ${sentrix.length} signals extracted — minimum 3 required`;
-  } else if (axion.length < minCount) {
-    blockedReason = `Only ${axion.length} intelligence posts — mode ${outputMode} requires ${minCount}+`;
+  if (sentrix.length < minSentrix) {
+    blockedReason = `Signals extracted: ${sentrix.length}/${minSentrix} required for ${outputMode} mode`;
+  } else if (axion.length < minAxion) {
+    blockedReason = `Intel posts: ${axion.length}/${minAxion} required for ${outputMode} mode`;
   }
 
   return { sentrix, sage, axion, blackDog, escalationScore: blackDog.score, blockedReason };

@@ -1,0 +1,205 @@
+FINAL PASS — RSR SCRIBE DEPLOYMENT LOCK (LIVE-11)
+
+This is the final pass.
+No more prototype behavior.
+No confusing state logic.
+No hidden deployment rules.
+
+MISSION:
+Make RSR SCRIBE fully understandable, deployable, and operator-ready.
+
+━━━━━━━━━━━━━━━━━━━
+1. FIX DEPLOYMENT GATING (CRITICAL)
+━━━━━━━━━━━━━━━━━━━
+
+Current problem:
+POST TO X is authenticated but still appears unusable because deployment validation is too rigid and confusing.
+
+Fix mode-aware validation:
+
+- SINGLE mode → minimum 1 valid signal
+- BREAKING mode → minimum 1 valid signal
+- RAPID mode → minimum 2 valid signals
+- THREAD mode → minimum 3 valid signals
+- LONGFORM mode → minimum 3 valid signals
+
+This rule must control:
+- Scribe Decision
+- Terminal Judgement
+- POST TO X enabled state
+
+If mode requirements are satisfied, SCRIBE must show READY and POST TO X must unlock.
+
+━━━━━━━━━━━━━━━━━━━
+2. MAKE DEPLOYMENT STATE EXPLICIT
+━━━━━━━━━━━━━━━━━━━
+
+Add a clear deployment status strip in the X DEPLOYMENT CONTROL area.
+
+It must show one of these exact states:
+
+- X CONNECTED / CONTENT BLOCKED
+- X CONNECTED / READY TO DEPLOY
+- X CONNECTED / POSTING
+- X CONNECTED / POSTED
+- X NOT CONNECTED
+
+No vague gray button states.
+No mystery lock behavior.
+
+If blocked, explain exactly why:
+- not enough valid signals for selected mode
+- no draft generated
+- missing source extraction
+- etc.
+
+━━━━━━━━━━━━━━━━━━━
+3. ADD FINAL POST COMPOSER SURFACE
+━━━━━━━━━━━━━━━━━━━
+
+The operator must be able to clearly see what will be posted.
+
+In X DEPLOYMENT DRAFT:
+
+- each draft card stays visible
+- add an expanded FINAL POST PREVIEW / COMPOSER section
+- if SINGLE mode: show one final editable post block
+- if THREAD mode: show ordered editable post stack
+- each post must be editable inline before posting
+- add:
+  COPY POST
+  COPY THREAD
+  POST TO X
+
+This must feel like a real deployment surface, not just read-only cards.
+
+━━━━━━━━━━━━━━━━━━━
+4. IMPROVE X DEPLOYMENT CONTROL UX
+━━━━━━━━━━━━━━━━━━━
+
+Current problem:
+X is connected, but the control panel still feels like a credentials form instead of a live deployment console.
+
+Fix:
+
+A. Once credentials are verified:
+- collapse or minimize raw credential inputs
+- show:
+  Authenticated as @RSRINTEL
+  X status: Connected
+  Last verification: [time]
+
+B. Replace the current feel of the panel with:
+- deploy state
+- post readiness
+- final actions
+
+Keep a small “Edit Credentials” toggle if needed.
+
+━━━━━━━━━━━━━━━━━━━
+5. SCRIBE DECISION PANEL — MAKE IT USEFUL
+━━━━━━━━━━━━━━━━━━━
+
+Current problem:
+It only says BLOCKED in a harsh way without enough operational guidance.
+
+Fix:
+
+Show:
+
+TERMINAL JUDGEMENT:
+- READY
+- PARTIAL
+- BLOCKED
+- POSTED
+
+Below that, show:
+- signals extracted: X
+- mode requirement: X
+- deployment package: valid / invalid
+- x auth: connected / not connected
+
+This panel must clearly tell the operator what is happening.
+
+━━━━━━━━━━━━━━━━━━━
+6. FINAL OUTPUT QUALITY TIGHTENING
+━━━━━━━━━━━━━━━━━━━
+
+Keep the current signal style, but tighten slightly:
+
+- shorter signal line
+- shorter detail line
+- no bloated explanation
+- make each card more post-ready
+
+Still keep:
+- domain
+- location
+- signal
+- detail
+- source/confidence
+
+But optimize for final X posting flow.
+
+━━━━━━━━━━━━━━━━━━━
+7. SINGLE MODE MUST FEEL COMPLETE
+━━━━━━━━━━━━━━━━━━━
+
+If SINGLE mode is selected and one strong signal exists:
+
+- SCRIBE must not look broken
+- terminal judgement should become READY
+- one finished deployment card must appear
+- POST TO X must unlock if X is connected
+
+This is mandatory.
+
+━━━━━━━━━━━━━━━━━━━
+8. VISUAL CLEANUP FOR FINAL DEPLOYMENT
+━━━━━━━━━━━━━━━━━━━
+
+Keep the current good layout.
+Do NOT redesign from scratch.
+
+Only improve:
+- clarity
+- deploy controls
+- composer visibility
+- state readability
+
+Maintain:
+- glass look
+- restrained green accents
+- BLACKDOG integration
+- intelligence desk structure
+
+━━━━━━━━━━━━━━━━━━━
+9. FINAL PRODUCT RULE
+━━━━━━━━━━━━━━━━━━━
+
+After this pass, SCRIBE must behave like:
+
+- scan
+- generate
+- validate by mode
+- preview final post/package
+- deploy to X
+
+No confusion.
+No fake lock behavior.
+No hidden rules.
+
+━━━━━━━━━━━━━━━━━━━
+10. RESPONSE FORMAT
+━━━━━━━━━━━━━━━━━━━
+
+After implementation, report ONLY:
+
+1. exact files modified
+2. what gating logic was changed by mode
+3. whether SINGLE now unlocks with 1 valid signal
+4. what final composer/preview surface was added
+5. what X control UX was changed after authentication
+6. what terminal judgement states now exist
+7. whether POST TO X now unlocks correctly when requirements are met
+8. confirm visible marker says BUILD LIVE-11

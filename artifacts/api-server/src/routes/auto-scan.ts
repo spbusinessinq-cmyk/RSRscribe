@@ -100,9 +100,14 @@ router.post("/auto-scan", async (req, res) => {
     logs.push(`[TIMER] AI pipeline: ${Date.now() - tPipeline}ms`);
     logs.push(`[TIMER] total scan: ${Date.now() - t0}ms`);
 
+    const minSentrixForMode = (outputMode === "SINGLE_SIGNAL" || outputMode === "BREAKING_ALERT") ? 1
+      : outputMode === "RAPID_FIRE" ? 2 : 3;
+    const minAxionForMode = (outputMode === "SINGLE_SIGNAL" || outputMode === "BREAKING_ALERT") ? 1
+      : outputMode === "RAPID_FIRE" ? 2 : 3;
+
     const ready =
-      pipeline.sentrix.length >= 3 &&
-      pipeline.axion.length >= 3 &&
+      pipeline.sentrix.length >= minSentrixForMode &&
+      pipeline.axion.length >= minAxionForMode &&
       pipeline.sage.WHAT.length > 0 &&
       pipeline.blackDog.level !== "PENDING" &&
       !pipeline.blockedReason;
