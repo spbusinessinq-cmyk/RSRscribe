@@ -10,14 +10,20 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@mozilla/readability": "^0.6.0",
     "@workspace/api-zod": "workspace:*",
     "@workspace/db": "workspace:*",
+    "@workspace/integrations-openai-ai-server": "workspace:*",
+    "cheerio": "^1.2.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2",
     "drizzle-orm": "catalog:",
     "express": "^5",
+    "fast-xml-parser": "^5.5.8",
+    "jsdom": "^29.0.1",
     "pino": "^9",
-    "pino-http": "^10"
+    "pino-http": "^10",
+    "twitter-api-v2": "^1.29.0"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.10",

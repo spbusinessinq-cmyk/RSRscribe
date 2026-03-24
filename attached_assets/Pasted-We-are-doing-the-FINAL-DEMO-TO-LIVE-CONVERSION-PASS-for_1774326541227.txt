@@ -1,0 +1,229 @@
+We are doing the FINAL DEMO-TO-LIVE CONVERSION PASS for RSR SCRIBE.
+
+Do not redesign UI.
+Do not change the visual style.
+Do not rebuild layout.
+Do not remove panels.
+Keep the current terminal look, green system aesthetic, pipeline boxes, and overall structure exactly as-is.
+
+MISSION:
+Convert SCRIBE from working demo mode into real live mode.
+
+Right now the interface works, but AUTO SCAN is still using demo/mock candidate data and demo pipeline content.
+This pass must replace demo behavior with real source collection, real ingestion, and real deployment logic.
+
+━━━━━━━━━━━━━━━━━━━
+PHASE 1 — REMOVE ALL DEMO DATA
+━━━━━━━━━━━━━━━━━━━
+
+Find and remove all hardcoded/mock/demo data used for:
+- AUTO SCAN candidates
+- lead source
+- SENTRIX signals
+- SAGE analysis
+- AXION output thread
+- BLACK DOG assessment
+- fake X success state
+
+No fallback to fake sample stories.
+No seeded example narratives.
+No placeholder Reuters/energy/crisis scenario text.
+
+If live data is unavailable, block honestly.
+
+━━━━━━━━━━━━━━━━━━━
+PHASE 2 — REAL AUTO SCAN
+━━━━━━━━━━━━━━━━━━━
+
+AUTO SCAN must now:
+
+1. Fetch real public feeds server-side based on selected scope/window
+2. Parse RSS/XML server-side
+3. Normalize candidates
+4. Dedupe candidates
+5. Rank by:
+   - recency
+   - urgency
+   - scope relevance
+   - source quality
+6. Select the strongest lead candidate
+7. Populate the Top Candidates panel with real results
+
+Scope feeds:
+GLOBAL:
+- Reuters World
+- BBC World
+- AP / world feed if available
+- Al Jazeera World if available
+
+CONFLICT:
+- Reuters World / conflict-relevant feeds
+- BBC conflict/international
+- AP international
+- other public conflict-relevant feeds
+
+ENERGY:
+- Reuters energy/markets if available
+- BBC business/energy relevant feeds
+- public commodities / shipping / energy feeds
+
+CYBER:
+- BleepingComputer
+- The Hacker News
+- CISA advisories or similar public source
+
+If one feed fails:
+- continue with the rest
+- do not collapse the whole scan
+
+━━━━━━━━━━━━━━━━━━━
+PHASE 3 — REAL LEAD INGESTION
+━━━━━━━━━━━━━━━━━━━
+
+After selecting the lead candidate:
+- send the lead URL through the real ingest pipeline
+- use live extraction only
+- no demo source text
+- no fabricated summaries
+
+Use:
+- Readability + JSDOM first
+- cheerio fallback
+- paragraph fallback
+
+If lead ingest fails:
+- automatically try next ranked candidate
+- continue until success or candidates exhausted
+
+If all fail:
+- block honestly:
+  "Fresh candidates found but readable article extraction failed"
+
+━━━━━━━━━━━━━━━━━━━
+PHASE 4 — REAL PIPELINE POPULATION
+━━━━━━━━━━━━━━━━━━━
+
+Once ingest succeeds, populate live panels with real derived content:
+
+SENTRIX:
+- split real extracted source text into meaningful signals
+- classify signals honestly
+- no fabricated extra signals
+
+SAGE:
+- generate WHAT
+- WHY
+- MECHANISM
+- CONSTRAINTS
+- CHANGING
+- DOMAIN
+- LOCATION
+
+All fields must derive from actual extracted source content.
+Do not invent geopolitical scenarios not present in the source base.
+
+AXION:
+- build output thread from the real source + analysis
+- no canned crisis narrative
+- no prewritten “multi-domain campaign” text
+- no generic filler language
+
+BLACK DOG:
+- perform a real lightweight risk pass against current output
+- if not enough evidence, say so honestly
+
+━━━━━━━━━━━━━━━━━━━
+PHASE 5 — HONEST INTELLIGENCE QUALITY
+━━━━━━━━━━━━━━━━━━━
+
+Tighten output quality rules:
+
+- no generic “multiple contributing factors” unless no better cause exists
+- no broad invented escalation unless grounded in source text
+- no dramatic language unless reflected in actual source material
+- no raw URLs in output thread
+- use source hostname as source reference
+- keep thread readable and concise
+- if confidence is low, say so
+
+━━━━━━━━━━━━━━━━━━━
+PHASE 6 — REAL X INTEGRATION
+━━━━━━━━━━━━━━━━━━━
+
+Keep the X panel exactly where it is, but make it live only.
+
+SAVE CREDENTIALS:
+- store real entered credentials
+
+TEST CONNECTION:
+- call real backend route
+- surface real result message
+
+POST TO X:
+- only activates when:
+  - credentials are valid
+  - SCRIBE state is READY
+  - AXION output exists
+
+If posting is not actually live yet, block honestly and say exactly why.
+No fake connected state.
+No fake deployment state.
+
+━━━━━━━━━━━━━━━━━━━
+PHASE 7 — LIVE SYSTEM LOG
+━━━━━━━━━━━━━━━━━━━
+
+The live system log must now reflect real operations, not demo sequence text.
+
+Examples:
+- [AUTO SCAN] started
+- [FEED] Reuters World returned 8 items
+- [RANK] 11 candidates scored
+- [INGEST] lead candidate selected: ...
+- [INGEST] readability success
+- [SENTRIX] 5 signals extracted
+- [SAGE] analysis complete
+- [AXION] 5 deployment lines generated
+- [X] credentials verified
+- [POST] deployment ready
+
+If failure:
+- show specific real reason
+
+━━━━━━━━━━━━━━━━━━━
+PHASE 8 — VISIBLE LIVE MARKER
+━━━━━━━━━━━━━━━━━━━
+
+Update the header marker to:
+
+AUTO SCAN PREVIEW // BUILD LIVE-3
+
+This visible marker must appear in the running preview so I know this live pass actually applied.
+
+━━━━━━━━━━━━━━━━━━━
+FINAL RULES
+━━━━━━━━━━━━━━━━━━━
+
+- No demo data
+- No mock pipeline content
+- No fake intelligence text
+- No fabricated risk analysis
+- No fake X success
+- Preserve the exact interface and style
+- Replace demo behavior with live behavior only
+
+━━━━━━━━━━━━━━━━━━━
+RESPONSE FORMAT
+━━━━━━━━━━━━━━━━━━━
+
+After implementation, report ONLY:
+
+1. exact files modified
+2. whether all demo data was removed
+3. which live feeds are now used by each scope
+4. whether AUTO SCAN now pulls real candidates
+5. whether lead ingestion now uses real article extraction
+6. whether AXION output now derives from live source content
+7. whether X TEST is real
+8. whether POST TO X is real or still honestly gated
+9. confirm the visible header marker now says BUILD LIVE-3

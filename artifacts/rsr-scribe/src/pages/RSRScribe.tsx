@@ -443,7 +443,7 @@ export default function RSRScribe() {
         <div className="mb-4 border px-4 py-3 uppercase tracking-[0.28em] text-[11px] md:flex md:items-center md:justify-between" style={{ borderColor: BORDER, background: "rgba(0,0,0,0.28)", boxShadow: "0 0 30px rgba(0,255,136,0.05)" }}>
           <div>
             <div className="text-white">RSR SCRIBE — SIGNAL DEPLOYMENT TERMINAL</div>
-            <div className="mt-1" style={{ color: ACCENT }}>AUTO SCAN PREVIEW // BUILD LIVE-2 // BUILD LIVE-2</div>
+            <div className="mt-1" style={{ color: ACCENT }}>AUTO SCAN PREVIEW // BUILD LIVE-3</div>
           </div>
           <div className="mt-3 md:mt-0 flex gap-6 text-[10px] text-white/65">
             <span>MODE // ONE-BUTTON COLLECTION</span>
