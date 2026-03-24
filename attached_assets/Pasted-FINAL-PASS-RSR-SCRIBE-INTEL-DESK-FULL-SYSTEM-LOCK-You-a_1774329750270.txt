@@ -1,0 +1,199 @@
+FINAL PASS — RSR SCRIBE INTEL DESK (FULL SYSTEM LOCK)
+
+You are not polishing a UI.
+
+You are transforming RSR SCRIBE into a full-spectrum intelligence command desk.
+
+This is the final pass before deployment.
+
+Do NOT make small tweaks.
+Do NOT preserve weak structures.
+Do NOT default to generic UI patterns.
+
+Rebuild the experience so it feels like a real intelligence workstation.
+
+━━━━━━━━━━━━━━━━━━━
+CORE OBJECTIVE
+━━━━━━━━━━━━━━━━━━━
+
+RSR SCRIBE must function and feel like:
+
+A real-time intelligence desk
+Not a dashboard
+Not a grid of boxes
+Not a news reader
+
+This is where:
+- signals are ingested
+- intelligence is formed
+- deployment decisions are made
+- posts are executed
+
+━━━━━━━━━━━━━━━━━━━
+LAYOUT — INTEL DESK STRUCTURE (MANDATORY)
+━━━━━━━━━━━━━━━━━━━
+
+Replace current box-grid layout.
+
+Use a 3-ZONE INTELLIGENCE DESK:
+
+LEFT — SIGNAL CONTROL (NARROW COLUMN)
+Purpose: intake + validation + source awareness
+
+Contains:
+- Deployment State (compact)
+- Validation Checklist (tight)
+- Lead Source (clean)
+- SENTRIX signals (scrollable)
+
+Style:
+- low visual weight
+- compressed
+- informational only
+
+CENTER — ANALYSIS DESK (PRIMARY AREA)
+This is the brain of the system
+
+Contains:
+- Input Terminal (top)
+- Intelligence Flow (pipeline)
+- SAGE ANALYSIS (main block)
+
+Rules:
+- widest section
+- not boxed into cards
+- reads like a briefing, not widgets
+
+RIGHT — DEPLOYMENT RAIL (ACTION COLUMN)
+Purpose: execution layer
+
+Contains:
+- X DEPLOYMENT DRAFT (primary)
+- SIGNAL CANDIDATES (secondary)
+- X DEPLOYMENT CONTROL (bottom)
+
+This column should feel like:
+ready to deploy intelligence
+
+━━━━━━━━━━━━━━━━━━━
+VISUAL SYSTEM — GLASS INTEL DESIGN
+━━━━━━━━━━━━━━━━━━━
+
+Remove neon overload.
+
+COLOR:
+- background: near-black / graphite
+- panels: dark glass
+- borders: soft, subtle
+- green: accent only (active states, buttons)
+- text: off-white
+
+GLASS:
+- slight blur
+- soft reflections
+- layered depth
+- no harsh glow
+
+DEPTH:
+- increase spacing
+- reduce cramped stacking
+- layered panel hierarchy
+
+━━━━━━━━━━━━━━━━━━━
+INTELLIGENCE FLOW (PIPELINE)
+━━━━━━━━━━━━━━━━━━━
+
+Rename:
+Pipeline Visualization → INTELLIGENCE FLOW
+
+Animation:
+- nodes pulse when active
+- smooth transitions
+- subtle glow only
+- visible stage progression
+
+━━━━━━━━━━━━━━━━━━━
+X DEPLOYMENT SYSTEM (CRITICAL)
+━━━━━━━━━━━━━━━━━━━
+
+Rename:
+OUTPUT THREAD → X DEPLOYMENT DRAFT
+
+ADD MODE SELECTOR (in Input Terminal):
+
+Modes:
+- THREAD
+- SINGLE
+- RAPID
+- LONGFORM
+- BREAKING
+
+Modes control:
+- number of posts
+- structure
+- density
+
+━━━━━━━━━━━━━━━━━━━
+POST GENERATION RULES (STRICT)
+━━━━━━━━━━━━━━━━━━━
+
+Each post must follow:
+
+LINE 1: DOMAIN + LOCATION
+LINE 2: SIGNAL (what happened — precise)
+LINE 3: DETAIL (operational meaning)
+LINE 4: SOURCE + CONFIDENCE
+
+Example:
+
+MILITARY / SOUTHERN LEBANON
+Precision strike impacted fuel node near Rashidieh; secondary fire spread toward civilian perimeter
+Blast pattern indicates targeted storage destruction with pre-cleared operational zone
+SRC: OSINT CONFIRMED
+
+HARD RULES:
+- NO “said”
+- NO “according to”
+- NO filler phrases
+- NO narrative tone
+- NO generic summaries
+- every line must add information
+
+━━━━━━━━━━━━━━━━━━━
+BLACKDOG INTEGRATION (MANDATORY)
+━━━━━━━━━━━━━━━━━━━
+
+Integrate BLACKDOG as a visible system layer:
+
+- status indicator in header: “BLACKDOG ACTIVE”
+- add small shield indicator: “Protected by BLACKDOG”
+- add optional risk flag in output (LOW / ELEVATED / HIGH / CRITICAL)
+
+Must feel like part of system, not decoration
+
+━━━━━━━━━━━━━━━━━━━
+PERFORMANCE + REAL DATA (MANDATORY)
+━━━━━━━━━━━━━━━━━━━
+
+- eliminate all mock/demo data
+- only process real feed content
+- show loading state: SCANNING / PROCESSING
+- ensure response time under ~30s
+
+━━━━━━━━━━━━━━━━━━━
+FINAL STANDARD
+━━━━━━━━━━━━━━━━━━━
+
+The result must feel like:
+
+- an intelligence command desk
+- a live analysis environment
+- a deployment-ready system
+
+NOT:
+- a UI demo
+- a dashboard
+- a grid of green boxes
+
+This is the final system state.
+Make it production-ready.
