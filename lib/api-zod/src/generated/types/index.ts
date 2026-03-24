@@ -6,4 +6,24 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./autoScanRequest";
+export * from "./autoScanRequestScope";
+export * from "./autoScanRequestWindow";
+export * from "./autoScanResponse";
+export * from "./candidate";
+export * from "./candidateScope";
+export * from "./cleanedSource";
 export * from "./healthStatus";
+export * from "./postRequest";
+export * from "./postResponse";
+export * from "./riskOutput";
+export * from "./riskOutputLevel";
+export * from "./sageOutput";
+export * from "./signal";
+export * from "./signalClassification";
+export * from "./signalKind";
+export * from "./signalLabel";
+export * from "./sourceRecord";
+export * from "./xCredentials";
+export * from "./xCredentialStatus";
+export * from "./xTestResponse";

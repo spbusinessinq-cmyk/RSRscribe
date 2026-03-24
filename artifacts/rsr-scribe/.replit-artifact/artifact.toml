@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "RSR Scribe"
+version = "1.0.0"
+id = "artifacts/rsr-scribe"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 26026
+
+[services.development]
+run = "pnpm --filter @workspace/rsr-scribe run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/rsr-scribe", "run", "build" ]
+publicDir = "artifacts/rsr-scribe/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "26026"
+BASE_PATH = "/"

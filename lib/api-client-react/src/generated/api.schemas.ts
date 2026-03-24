@@ -8,3 +8,190 @@
 export interface HealthStatus {
   status: string;
 }
+
+export type AutoScanRequestScope =
+  (typeof AutoScanRequestScope)[keyof typeof AutoScanRequestScope];
+
+export const AutoScanRequestScope = {
+  GLOBAL: "GLOBAL",
+  CONFLICT: "CONFLICT",
+  ENERGY: "ENERGY",
+  CYBER: "CYBER",
+} as const;
+
+export type AutoScanRequestWindow =
+  (typeof AutoScanRequestWindow)[keyof typeof AutoScanRequestWindow];
+
+export const AutoScanRequestWindow = {
+  "1H": "1H",
+  "3H": "3H",
+  "6H": "6H",
+  "12H": "12H",
+  "24H": "24H",
+} as const;
+
+export interface AutoScanRequest {
+  scope: AutoScanRequestScope;
+  window: AutoScanRequestWindow;
+  leadUrl?: string;
+}
+
+export type SignalClassification =
+  (typeof SignalClassification)[keyof typeof SignalClassification];
+
+export const SignalClassification = {
+  CONFIRMED: "CONFIRMED",
+  LIKELY: "LIKELY",
+  CONTESTED: "CONTESTED",
+  UNKNOWN: "UNKNOWN",
+} as const;
+
+export type SignalLabel = (typeof SignalLabel)[keyof typeof SignalLabel];
+
+export const SignalLabel = {
+  CONFIRMED: "CONFIRMED",
+  LIKELY: "LIKELY",
+  CONTESTED: "CONTESTED",
+  UNKNOWN: "UNKNOWN",
+} as const;
+
+export type SignalKind = (typeof SignalKind)[keyof typeof SignalKind];
+
+export const SignalKind = {
+  FACT: "FACT",
+  CLAIM: "CLAIM",
+  CHANGE: "CHANGE",
+  CONSEQUENCE: "CONSEQUENCE",
+  DEVELOPMENT: "DEVELOPMENT",
+} as const;
+
+export interface Signal {
+  text: string;
+  classification: SignalClassification;
+  label: SignalLabel;
+  confidence: number;
+  kind: SignalKind;
+}
+
+export interface SageOutput {
+  WHAT: string;
+  WHY: string;
+  MECHANISM: string;
+  CONSTRAINTS: string;
+  CHANGING: string;
+  LOCATION: string;
+  DOMAIN: string;
+}
+
+export type RiskOutputLevel =
+  (typeof RiskOutputLevel)[keyof typeof RiskOutputLevel];
+
+export const RiskOutputLevel = {
+  PENDING: "PENDING",
+  LOW: "LOW",
+  ELEVATED: "ELEVATED",
+  HIGH: "HIGH",
+  CRITICAL: "CRITICAL",
+} as const;
+
+export interface RiskOutput {
+  level: RiskOutputLevel;
+  reason: string;
+  score: number;
+}
+
+export type CandidateScope =
+  (typeof CandidateScope)[keyof typeof CandidateScope];
+
+export const CandidateScope = {
+  GLOBAL: "GLOBAL",
+  CONFLICT: "CONFLICT",
+  ENERGY: "ENERGY",
+  CYBER: "CYBER",
+} as const;
+
+export interface Candidate {
+  headline: string;
+  url: string;
+  summary: string;
+  sourceHost: string;
+  publishedAt: string;
+  scope: CandidateScope;
+  feedName: string;
+  score: number;
+}
+
+export interface CleanedSource {
+  readableText: string;
+  headline: string;
+  body: string;
+  claims: string[];
+  sourceHost: string;
+  onlyUrlInput: boolean;
+  extracted: boolean;
+  issue?: string;
+}
+
+export interface SourceRecord {
+  headline: string;
+  content: string;
+  timestamp: string;
+  sourceType: string;
+  sourceHost: string;
+  sourceUrl: string;
+  summary: string;
+  feedName: string;
+}
+
+export interface AutoScanResponse {
+  success: boolean;
+  mode?: string;
+  scope?: string;
+  window?: string;
+  leadCandidate?: Candidate;
+  sourceRecord?: SourceRecord;
+  candidates?: Candidate[];
+  cleanedSource?: CleanedSource;
+  sentrix?: Signal[];
+  sage?: SageOutput;
+  axion?: string[];
+  blackDog?: RiskOutput;
+  escalationScore?: number;
+  ready?: boolean;
+  blockedReason?: string;
+  reason?: string;
+  message?: string;
+  logs?: string[];
+}
+
+export interface XCredentials {
+  apiKey: string;
+  apiKeySecret: string;
+  accessToken: string;
+  accessTokenSecret: string;
+}
+
+export interface XCredentialStatus {
+  configured: boolean;
+  status: string;
+  message?: string;
+}
+
+export interface XTestResponse {
+  success: boolean;
+  message: string;
+  status: string;
+}
+
+export interface PostRequest {
+  preview?: boolean;
+  mode?: string;
+  lines: string[];
+}
+
+export interface PostResponse {
+  success: boolean;
+  postedCount: number;
+  ids: string[];
+  message: string;
+}

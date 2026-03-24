@@ -10,6 +10,12 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: scan
+    description: Auto scan operations
+  - name: x
+    description: X (Twitter) integration
+  - name: post
+    description: Posting operations
 paths:
   /healthz:
     get:
@@ -24,6 +30,99 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auto-scan:
+    post:
+      operationId: autoScan
+      tags: [scan]
+      summary: Run auto scan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AutoScanRequest"
+      responses:
+        "200":
+          description: Auto scan result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutoScanResponse"
+
+  /x/credentials:
+    get:
+      operationId: getXCredentials
+      tags: [x]
+      summary: Get X credential status
+      responses:
+        "200":
+          description: Credential status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/XCredentialStatus"
+    post:
+      operationId: saveXCredentials
+      tags: [x]
+      summary: Save X credentials
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/XCredentials"
+      responses:
+        "200":
+          description: Save result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/XCredentialStatus"
+    delete:
+      operationId: clearXCredentials
+      tags: [x]
+      summary: Clear X credentials
+      responses:
+        "200":
+          description: Cleared
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/XCredentialStatus"
+
+  /x/test:
+    post:
+      operationId: testXConnection
+      tags: [x]
+      summary: Test X connection
+      responses:
+        "200":
+          description: Test result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/XTestResponse"
+
+  /post:
+    post:
+      operationId: postToX
+      tags: [post]
+      summary: Post thread to X
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PostRequest"
+      responses:
+        "200":
+          description: Post result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PostResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +133,297 @@ components:
       required:
         - status
 
+    AutoScanRequest:
+      type: object
+      properties:
+        scope:
+          type: string
+          enum: [GLOBAL, CONFLICT, ENERGY, CYBER]
+        window:
+          type: string
+          enum: ["1H", "3H", "6H", "12H", "24H"]
+        leadUrl:
+          type: string
+      required:
+        - scope
+        - window
+
+    Signal:
+      type: object
+      properties:
+        text:
+          type: string
+        classification:
+          type: string
+          enum: [CONFIRMED, LIKELY, CONTESTED, UNKNOWN]
+        label:
+          type: string
+          enum: [CONFIRMED, LIKELY, CONTESTED, UNKNOWN]
+        confidence:
+          type: number
+        kind:
+          type: string
+          enum: [FACT, CLAIM, CHANGE, CONSEQUENCE, DEVELOPMENT]
+      required:
+        - text
+        - classification
+        - label
+        - confidence
+        - kind
+
+    SageOutput:
+      type: object
+      properties:
+        WHAT:
+          type: string
+        WHY:
+          type: string
+        MECHANISM:
+          type: string
+        CONSTRAINTS:
+          type: string
+        CHANGING:
+          type: string
+        LOCATION:
+          type: string
+        DOMAIN:
+          type: string
+      required:
+        - WHAT
+        - WHY
+        - MECHANISM
+        - CONSTRAINTS
+        - CHANGING
+        - LOCATION
+        - DOMAIN
+
+    RiskOutput:
+      type: object
+      properties:
+        level:
+          type: string
+          enum: [PENDING, LOW, ELEVATED, HIGH, CRITICAL]
+        reason:
+          type: string
+        score:
+          type: number
+      required:
+        - level
+        - reason
+        - score
+
+    Candidate:
+      type: object
+      properties:
+        headline:
+          type: string
+        url:
+          type: string
+        summary:
+          type: string
+        sourceHost:
+          type: string
+        publishedAt:
+          type: string
+        scope:
+          type: string
+          enum: [GLOBAL, CONFLICT, ENERGY, CYBER]
+        feedName:
+          type: string
+        score:
+          type: number
+      required:
+        - headline
+        - url
+        - summary
+        - sourceHost
+        - publishedAt
+        - scope
+        - feedName
+        - score
+
+    CleanedSource:
+      type: object
+      properties:
+        readableText:
+          type: string
+        headline:
+          type: string
+        body:
+          type: string
+        claims:
+          type: array
+          items:
+            type: string
+        sourceHost:
+          type: string
+        onlyUrlInput:
+          type: boolean
+        extracted:
+          type: boolean
+        issue:
+          type: string
+      required:
+        - readableText
+        - headline
+        - body
+        - claims
+        - sourceHost
+        - onlyUrlInput
+        - extracted
+
+    SourceRecord:
+      type: object
+      properties:
+        headline:
+          type: string
+        content:
+          type: string
+        timestamp:
+          type: string
+        sourceType:
+          type: string
+        sourceHost:
+          type: string
+        sourceUrl:
+          type: string
+        summary:
+          type: string
+        feedName:
+          type: string
+      required:
+        - headline
+        - content
+        - timestamp
+        - sourceType
+        - sourceHost
+        - sourceUrl
+        - summary
+        - feedName
+
+    AutoScanResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        mode:
+          type: string
+        scope:
+          type: string
+        window:
+          type: string
+        leadCandidate:
+          $ref: "#/components/schemas/Candidate"
+        sourceRecord:
+          $ref: "#/components/schemas/SourceRecord"
+        candidates:
+          type: array
+          items:
+            $ref: "#/components/schemas/Candidate"
+        cleanedSource:
+          $ref: "#/components/schemas/CleanedSource"
+        sentrix:
+          type: array
+          items:
+            $ref: "#/components/schemas/Signal"
+        sage:
+          $ref: "#/components/schemas/SageOutput"
+        axion:
+          type: array
+          items:
+            type: string
+        blackDog:
+          $ref: "#/components/schemas/RiskOutput"
+        escalationScore:
+          type: number
+        ready:
+          type: boolean
+        blockedReason:
+          type: string
+        reason:
+          type: string
+        message:
+          type: string
+        logs:
+          type: array
+          items:
+            type: string
+      required:
+        - success
+
+    XCredentials:
+      type: object
+      properties:
+        apiKey:
+          type: string
+        apiKeySecret:
+          type: string
+        accessToken:
+          type: string
+        accessTokenSecret:
+          type: string
+      required:
+        - apiKey
+        - apiKeySecret
+        - accessToken
+        - accessTokenSecret
+
+    XCredentialStatus:
+      type: object
+      properties:
+        configured:
+          type: boolean
+        status:
+          type: string
+        message:
+          type: string
+      required:
+        - configured
+        - status
+
+    XTestResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        status:
+          type: string
+      required:
+        - success
+        - message
+        - status
+
+    PostRequest:
+      type: object
+      properties:
+        preview:
+          type: boolean
+        mode:
+          type: string
+        lines:
+          type: array
+          items:
+            type: string
+      required:
+        - lines
+
+    PostResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        postedCount:
+          type: number
+        ids:
+          type: array
+          items:
+            type: string
+        message:
+          type: string
+      required:
+        - success
+        - postedCount
+        - ids
+        - message

@@ -5,18 +5,30 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
+  MutationFunction,
   QueryFunction,
   QueryKey,
+  UseMutationOptions,
+  UseMutationResult,
   UseQueryOptions,
   UseQueryResult,
 } from "@tanstack/react-query";
 
-import type { HealthStatus } from "./api.schemas";
+import type {
+  AutoScanRequest,
+  AutoScanResponse,
+  HealthStatus,
+  PostRequest,
+  PostResponse,
+  XCredentialStatus,
+  XCredentials,
+  XTestResponse,
+} from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
-import type { ErrorType } from "../custom-fetch";
+import type { ErrorType, BodyType } from "../custom-fetch";
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -99,3 +111,498 @@ export function useHealthCheck<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Run auto scan
+ */
+export const getAutoScanUrl = () => {
+  return `/api/auto-scan`;
+};
+
+export const autoScan = async (
+  autoScanRequest: AutoScanRequest,
+  options?: RequestInit,
+): Promise<AutoScanResponse> => {
+  return customFetch<AutoScanResponse>(getAutoScanUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(autoScanRequest),
+  });
+};
+
+export const getAutoScanMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof autoScan>>,
+    TError,
+    { data: BodyType<AutoScanRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof autoScan>>,
+  TError,
+  { data: BodyType<AutoScanRequest> },
+  TContext
+> => {
+  const mutationKey = ["autoScan"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof autoScan>>,
+    { data: BodyType<AutoScanRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return autoScan(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AutoScanMutationResult = NonNullable<
+  Awaited<ReturnType<typeof autoScan>>
+>;
+export type AutoScanMutationBody = BodyType<AutoScanRequest>;
+export type AutoScanMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Run auto scan
+ */
+export const useAutoScan = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof autoScan>>,
+    TError,
+    { data: BodyType<AutoScanRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof autoScan>>,
+  TError,
+  { data: BodyType<AutoScanRequest> },
+  TContext
+> => {
+  return useMutation(getAutoScanMutationOptions(options));
+};
+
+/**
+ * @summary Get X credential status
+ */
+export const getGetXCredentialsUrl = () => {
+  return `/api/x/credentials`;
+};
+
+export const getXCredentials = async (
+  options?: RequestInit,
+): Promise<XCredentialStatus> => {
+  return customFetch<XCredentialStatus>(getGetXCredentialsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetXCredentialsQueryKey = () => {
+  return [`/api/x/credentials`] as const;
+};
+
+export const getGetXCredentialsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getXCredentials>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getXCredentials>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetXCredentialsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getXCredentials>>> = ({
+    signal,
+  }) => getXCredentials({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getXCredentials>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetXCredentialsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getXCredentials>>
+>;
+export type GetXCredentialsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get X credential status
+ */
+
+export function useGetXCredentials<
+  TData = Awaited<ReturnType<typeof getXCredentials>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getXCredentials>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetXCredentialsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Save X credentials
+ */
+export const getSaveXCredentialsUrl = () => {
+  return `/api/x/credentials`;
+};
+
+export const saveXCredentials = async (
+  xCredentials: XCredentials,
+  options?: RequestInit,
+): Promise<XCredentialStatus> => {
+  return customFetch<XCredentialStatus>(getSaveXCredentialsUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(xCredentials),
+  });
+};
+
+export const getSaveXCredentialsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof saveXCredentials>>,
+    TError,
+    { data: BodyType<XCredentials> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof saveXCredentials>>,
+  TError,
+  { data: BodyType<XCredentials> },
+  TContext
+> => {
+  const mutationKey = ["saveXCredentials"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof saveXCredentials>>,
+    { data: BodyType<XCredentials> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return saveXCredentials(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SaveXCredentialsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof saveXCredentials>>
+>;
+export type SaveXCredentialsMutationBody = BodyType<XCredentials>;
+export type SaveXCredentialsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Save X credentials
+ */
+export const useSaveXCredentials = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof saveXCredentials>>,
+    TError,
+    { data: BodyType<XCredentials> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof saveXCredentials>>,
+  TError,
+  { data: BodyType<XCredentials> },
+  TContext
+> => {
+  return useMutation(getSaveXCredentialsMutationOptions(options));
+};
+
+/**
+ * @summary Clear X credentials
+ */
+export const getClearXCredentialsUrl = () => {
+  return `/api/x/credentials`;
+};
+
+export const clearXCredentials = async (
+  options?: RequestInit,
+): Promise<XCredentialStatus> => {
+  return customFetch<XCredentialStatus>(getClearXCredentialsUrl(), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getClearXCredentialsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof clearXCredentials>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof clearXCredentials>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["clearXCredentials"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof clearXCredentials>>,
+    void
+  > = () => {
+    return clearXCredentials(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ClearXCredentialsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof clearXCredentials>>
+>;
+
+export type ClearXCredentialsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Clear X credentials
+ */
+export const useClearXCredentials = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof clearXCredentials>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof clearXCredentials>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getClearXCredentialsMutationOptions(options));
+};
+
+/**
+ * @summary Test X connection
+ */
+export const getTestXConnectionUrl = () => {
+  return `/api/x/test`;
+};
+
+export const testXConnection = async (
+  options?: RequestInit,
+): Promise<XTestResponse> => {
+  return customFetch<XTestResponse>(getTestXConnectionUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getTestXConnectionMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof testXConnection>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof testXConnection>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["testXConnection"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof testXConnection>>,
+    void
+  > = () => {
+    return testXConnection(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type TestXConnectionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof testXConnection>>
+>;
+
+export type TestXConnectionMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Test X connection
+ */
+export const useTestXConnection = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof testXConnection>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof testXConnection>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getTestXConnectionMutationOptions(options));
+};
+
+/**
+ * @summary Post thread to X
+ */
+export const getPostToXUrl = () => {
+  return `/api/post`;
+};
+
+export const postToX = async (
+  postRequest: PostRequest,
+  options?: RequestInit,
+): Promise<PostResponse> => {
+  return customFetch<PostResponse>(getPostToXUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(postRequest),
+  });
+};
+
+export const getPostToXMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postToX>>,
+    TError,
+    { data: BodyType<PostRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof postToX>>,
+  TError,
+  { data: BodyType<PostRequest> },
+  TContext
+> => {
+  const mutationKey = ["postToX"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof postToX>>,
+    { data: BodyType<PostRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return postToX(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PostToXMutationResult = NonNullable<
+  Awaited<ReturnType<typeof postToX>>
+>;
+export type PostToXMutationBody = BodyType<PostRequest>;
+export type PostToXMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Post thread to X
+ */
+export const usePostToX = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postToX>>,
+    TError,
+    { data: BodyType<PostRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof postToX>>,
+  TError,
+  { data: BodyType<PostRequest> },
+  TContext
+> => {
+  return useMutation(getPostToXMutationOptions(options));
+};

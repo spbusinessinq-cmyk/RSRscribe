@@ -14,3 +14,175 @@ import * as zod from "zod";
 export const HealthCheckResponse = zod.object({
   status: zod.string(),
 });
+
+/**
+ * @summary Run auto scan
+ */
+export const AutoScanBody = zod.object({
+  scope: zod.enum(["GLOBAL", "CONFLICT", "ENERGY", "CYBER"]),
+  window: zod.enum(["1H", "3H", "6H", "12H", "24H"]),
+  leadUrl: zod.string().optional(),
+});
+
+export const AutoScanResponse = zod.object({
+  success: zod.boolean(),
+  mode: zod.string().optional(),
+  scope: zod.string().optional(),
+  window: zod.string().optional(),
+  leadCandidate: zod
+    .object({
+      headline: zod.string(),
+      url: zod.string(),
+      summary: zod.string(),
+      sourceHost: zod.string(),
+      publishedAt: zod.string(),
+      scope: zod.enum(["GLOBAL", "CONFLICT", "ENERGY", "CYBER"]),
+      feedName: zod.string(),
+      score: zod.number(),
+    })
+    .optional(),
+  sourceRecord: zod
+    .object({
+      headline: zod.string(),
+      content: zod.string(),
+      timestamp: zod.string(),
+      sourceType: zod.string(),
+      sourceHost: zod.string(),
+      sourceUrl: zod.string(),
+      summary: zod.string(),
+      feedName: zod.string(),
+    })
+    .optional(),
+  candidates: zod
+    .array(
+      zod.object({
+        headline: zod.string(),
+        url: zod.string(),
+        summary: zod.string(),
+        sourceHost: zod.string(),
+        publishedAt: zod.string(),
+        scope: zod.enum(["GLOBAL", "CONFLICT", "ENERGY", "CYBER"]),
+        feedName: zod.string(),
+        score: zod.number(),
+      }),
+    )
+    .optional(),
+  cleanedSource: zod
+    .object({
+      readableText: zod.string(),
+      headline: zod.string(),
+      body: zod.string(),
+      claims: zod.array(zod.string()),
+      sourceHost: zod.string(),
+      onlyUrlInput: zod.boolean(),
+      extracted: zod.boolean(),
+      issue: zod.string().optional(),
+    })
+    .optional(),
+  sentrix: zod
+    .array(
+      zod.object({
+        text: zod.string(),
+        classification: zod.enum([
+          "CONFIRMED",
+          "LIKELY",
+          "CONTESTED",
+          "UNKNOWN",
+        ]),
+        label: zod.enum(["CONFIRMED", "LIKELY", "CONTESTED", "UNKNOWN"]),
+        confidence: zod.number(),
+        kind: zod.enum([
+          "FACT",
+          "CLAIM",
+          "CHANGE",
+          "CONSEQUENCE",
+          "DEVELOPMENT",
+        ]),
+      }),
+    )
+    .optional(),
+  sage: zod
+    .object({
+      WHAT: zod.string(),
+      WHY: zod.string(),
+      MECHANISM: zod.string(),
+      CONSTRAINTS: zod.string(),
+      CHANGING: zod.string(),
+      LOCATION: zod.string(),
+      DOMAIN: zod.string(),
+    })
+    .optional(),
+  axion: zod.array(zod.string()).optional(),
+  blackDog: zod
+    .object({
+      level: zod.enum(["PENDING", "LOW", "ELEVATED", "HIGH", "CRITICAL"]),
+      reason: zod.string(),
+      score: zod.number(),
+    })
+    .optional(),
+  escalationScore: zod.number().optional(),
+  ready: zod.boolean().optional(),
+  blockedReason: zod.string().optional(),
+  reason: zod.string().optional(),
+  message: zod.string().optional(),
+  logs: zod.array(zod.string()).optional(),
+});
+
+/**
+ * @summary Get X credential status
+ */
+export const GetXCredentialsResponse = zod.object({
+  configured: zod.boolean(),
+  status: zod.string(),
+  message: zod.string().optional(),
+});
+
+/**
+ * @summary Save X credentials
+ */
+export const SaveXCredentialsBody = zod.object({
+  apiKey: zod.string(),
+  apiKeySecret: zod.string(),
+  accessToken: zod.string(),
+  accessTokenSecret: zod.string(),
+});
+
+export const SaveXCredentialsResponse = zod.object({
+  configured: zod.boolean(),
+  status: zod.string(),
+  message: zod.string().optional(),
+});
+
+/**
+ * @summary Clear X credentials
+ */
+export const ClearXCredentialsResponse = zod.object({
+  configured: zod.boolean(),
+  status: zod.string(),
+  message: zod.string().optional(),
+});
+
+/**
+ * @summary Test X connection
+ */
+export const TestXConnectionResponse = zod.object({
+  success: zod.boolean(),
+  message: zod.string(),
+  status: zod.string(),
+});
+
+/**
+ * @summary Post thread to X
+ */
+export const PostToXBody = zod.object({
+  preview: zod.boolean().optional(),
+  mode: zod.string().optional(),
+  lines: zod.array(zod.string()),
+});
+
+export const PostToXResponse = zod.object({
+  success: zod.boolean(),
+  postedCount: zod.number(),
+  ids: zod.array(zod.string()),
+  message: zod.string(),
+});
