@@ -19,17 +19,34 @@ function extractHost(url: string): string {
   }
 }
 
-async function fetchHtml(url: string): Promise<string> {
-  const res = await fetch(url, {
-    headers: {
-      "User-Agent": "Mozilla/5.0 (compatible; RSR-Scribe/3.0)",
-      Accept: "text/html,application/xhtml+xml",
-    },
-    signal: AbortSignal.timeout(12000),
-    redirect: "follow",
+// Hard timeout wrapper — AbortSignal.timeout() alone does not cancel OS-level TCP connection hangs.
+async function withHardTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`hard timeout ${ms}ms — ${label}`)), ms);
   });
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
+async function fetchHtml(url: string): Promise<string> {
+  const res = await withHardTimeout(
+    fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; RSR-Scribe/3.0)",
+        Accept: "text/html,application/xhtml+xml",
+      },
+      signal: AbortSignal.timeout(10000),
+      redirect: "follow",
+    }),
+    11000,
+    url
+  );
   if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${url}`);
-  return res.text();
+  return withHardTimeout(res.text(), 8000, `body read ${url}`);
 }
 
 function readabilityExtract(html: string, url: string): string | null {

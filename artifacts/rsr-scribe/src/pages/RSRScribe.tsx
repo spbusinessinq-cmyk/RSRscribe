@@ -464,7 +464,7 @@ export default function RSRScribe() {
       <div style={{ flexShrink: 0, position: "relative", zIndex: 10, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 18px", borderBottom: `1px solid ${BORDER}` }}>
         <div>
           <div style={{ fontSize: 13, letterSpacing: "0.22em", textTransform: "uppercase", color: "rgba(255,255,255,0.88)", fontWeight: 500 }}>RSR SCRIBE — SIGNAL DEPLOYMENT TERMINAL</div>
-          <div style={{ fontSize: 9, letterSpacing: "0.24em", textTransform: "uppercase", color: "rgba(255,255,255,0.24)", marginTop: 2 }}>FULL-SPECTRUM INTELLIGENCE ENGINE // BUILD LIVE-15</div>
+          <div style={{ fontSize: 9, letterSpacing: "0.24em", textTransform: "uppercase", color: "rgba(255,255,255,0.24)", marginTop: 2 }}>FULL-SPECTRUM INTELLIGENCE ENGINE // BUILD LIVE-15 // BUILD PROOF // LIVE-PC-1</div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 18, fontSize: 9, letterSpacing: "0.18em", textTransform: "uppercase" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 9px", border: `1px solid rgba(255,255,255,0.06)`, background: "rgba(0,0,0,0.20)" }}>

@@ -18,11 +18,14 @@ type FeedDef = { name: string; url: string; scope: string[]; priority: number };
 // ── FEED REGISTRY ─────────────────────────────────────────────────────────────
 const FEEDS: FeedDef[] = [
   // GLOBAL ────────────────────────────────────────────────────────────────────
-  { name: "AP World",             url: "https://feeds.apnews.com/apnews/worldnews",                    scope: ["GLOBAL", "CONFLICT"], priority: 1 },
-  { name: "Reuters World",        url: "https://feeds.reuters.com/Reuters/worldNews",                  scope: ["GLOBAL", "CONFLICT"], priority: 1 },
+  // NOTE: AP (apnews.com) and Reuters (reuters.com) feeds return 000 (unreachable) from this environment.
+  //       Replaced with confirmed-200 alternatives.
+  { name: "NPR World",            url: "https://feeds.npr.org/1004/rss.xml",                           scope: ["GLOBAL", "CONFLICT"], priority: 1 },
+  { name: "DW World",             url: "https://rss.dw.com/rdf/rss-en-world",                         scope: ["GLOBAL", "CONFLICT"], priority: 1 },
   { name: "BBC World",            url: "https://feeds.bbci.co.uk/news/world/rss.xml",                  scope: ["GLOBAL", "CONFLICT"], priority: 2 },
   { name: "Guardian World",       url: "https://www.theguardian.com/world/rss",                        scope: ["GLOBAL", "CONFLICT"], priority: 2 },
   { name: "Al Jazeera World",     url: "https://www.aljazeera.com/xml/rss/all.xml",                    scope: ["GLOBAL", "CONFLICT"], priority: 2 },
+  { name: "France 24",            url: "https://www.france24.com/en/rss",                              scope: ["GLOBAL"],             priority: 2 },
   { name: "NYT World",            url: "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",       scope: ["GLOBAL"],             priority: 3 },
 
   // CONFLICT / SECURITY ───────────────────────────────────────────────────────
@@ -32,21 +35,36 @@ const FEEDS: FeedDef[] = [
   { name: "Military Times",       url: "https://www.militarytimes.com/arc/outboundfeeds/rss/",         scope: ["CONFLICT"],           priority: 3 },
 
   // ENERGY / MARKETS ──────────────────────────────────────────────────────────
-  { name: "Reuters Business",     url: "https://feeds.reuters.com/reuters/businessNews",               scope: ["ENERGY", "GLOBAL"],   priority: 1 },
+  // WSJ feed is stale (last updated Jan 2025) — removed.
   { name: "BBC Business",         url: "https://feeds.bbci.co.uk/news/business/rss.xml",               scope: ["ENERGY", "GLOBAL"],   priority: 1 },
-  { name: "AP Business",          url: "https://feeds.apnews.com/apnews/business",                     scope: ["ENERGY"],             priority: 2 },
-  { name: "Guardian Business",    url: "https://www.theguardian.com/business/rss",                     scope: ["ENERGY"],             priority: 3 },
+  { name: "Guardian Business",    url: "https://www.theguardian.com/business/rss",                     scope: ["ENERGY"],             priority: 2 },
+  { name: "NPR Business",         url: "https://feeds.npr.org/1001/rss.xml",                           scope: ["ENERGY"],             priority: 3 },
 
   // CYBER / INFRASTRUCTURE ────────────────────────────────────────────────────
   { name: "The Hacker News",      url: "https://thehackernews.com/feeds/posts/default",                scope: ["CYBER"],              priority: 1 },
   { name: "BleepingComputer",     url: "https://www.bleepingcomputer.com/feed/",                       scope: ["CYBER"],              priority: 1 },
   { name: "Krebs on Security",    url: "https://krebsonsecurity.com/feed/",                            scope: ["CYBER"],              priority: 2 },
   { name: "Wired Security",       url: "https://www.wired.com/feed/category/security/latest/rss",      scope: ["CYBER"],              priority: 2 },
-  { name: "AP Technology",        url: "https://feeds.apnews.com/apnews/technology",                   scope: ["CYBER"],              priority: 3 },
+  { name: "DW Technology",        url: "https://rss.dw.com/rdf/rss-en-world",                         scope: ["CYBER"],              priority: 3 },
 ];
 
 const MAX_FEEDS_PER_SCOPE = 6;
-const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_", textNodeName: "#text" });
+// entityExpansionLimit raised to 4000 to handle Guardian's large RSS feeds.
+const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_", textNodeName: "#text", processEntities: true, htmlEntities: true, entityExpansionLimit: 4000 });
+
+// Hard timeout wrapper — fires regardless of OS-level TCP timeout behaviour.
+// AbortSignal.timeout() alone does not cancel OS-level connection hangs (000 curl errors).
+async function withHardTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`hard timeout ${ms}ms — ${label}`)), ms);
+  });
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
 
 type CacheEntry = { data: RawCandidate[]; expiresAt: number };
 const feedCache = new Map<string, CacheEntry>();
@@ -111,7 +129,9 @@ function extractItems(parsed: Record<string, unknown>): Array<{
   title?: string; link?: string | { "#text"?: string; "@_href"?: string };
   description?: string; summary?: string; pubDate?: string;
   published?: string; updated?: string; "dc:date"?: string; content?: string;
+  "@_rdf:about"?: string;
 }> {
+  // RSS 2.0
   const rss     = (parsed as Record<string, Record<string, unknown>>)?.rss;
   const channel = rss?.channel as Record<string, unknown> | undefined;
   if (channel) {
@@ -119,11 +139,19 @@ function extractItems(parsed: Record<string, unknown>): Array<{
     if (Array.isArray(items)) return items;
     if (items) return [items as object];
   }
+  // Atom
   const feed = (parsed as Record<string, Record<string, unknown>>)?.feed;
   if (feed) {
     const entries = feed.entry;
     if (Array.isArray(entries)) return entries;
     if (entries) return [entries as object];
+  }
+  // RSS 1.0 / RDF (e.g. DW News)
+  const rdf = (parsed as Record<string, Record<string, unknown>>)?.["rdf:RDF"];
+  if (rdf) {
+    const items = rdf.item;
+    if (Array.isArray(items)) return items;
+    if (items) return [items as object];
   }
   return [];
 }
@@ -147,10 +175,14 @@ async function fetchFeed(feed: FeedDef, windowMs: number): Promise<RawCandidate[
   const cached = feedCache.get(cacheKey);
   if (cached && Date.now() < cached.expiresAt) return cached.data;
 
-  const res = await fetch(feed.url, {
-    headers: { "User-Agent": "RSR-Scribe-Feed-Reader/4.0" },
-    signal: AbortSignal.timeout(6000),
-  });
+  const res = await withHardTimeout(
+    fetch(feed.url, {
+      headers: { "User-Agent": "RSR-Scribe-Feed-Reader/4.0" },
+      signal: AbortSignal.timeout(5000),
+    }),
+    5500,
+    feed.name
+  );
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
   const xml    = await res.text();

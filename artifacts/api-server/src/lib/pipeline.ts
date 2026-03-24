@@ -196,14 +196,20 @@ export async function runPipeline(
 
   let raw: string;
   try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-5-mini",
-      max_completion_tokens: 4096,
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user",   content: USER_PROMPT(headline, body.slice(0, 3200), sourceHost, scope, outputMode, clusterSize) },
-      ],
-    });
+    const aiTimeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("AI call timed out after 28s")), 28000)
+    );
+    const completion = await Promise.race([
+      openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        max_completion_tokens: 1500,
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user",   content: USER_PROMPT(headline, body.slice(0, 2400), sourceHost, scope, outputMode, clusterSize) },
+        ],
+      }),
+      aiTimeout,
+    ]);
     const choice = completion.choices[0];
     raw = choice?.message?.content ?? "";
     if (!raw) {
