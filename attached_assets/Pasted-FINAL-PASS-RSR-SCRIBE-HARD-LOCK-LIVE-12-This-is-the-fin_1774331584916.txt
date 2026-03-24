@@ -1,0 +1,223 @@
+FINAL PASS — RSR SCRIBE HARD LOCK (LIVE-12)
+
+This is the final enforcement pass.
+
+No soft limits.
+No infinite layouts.
+No overflow behavior.
+No operator confusion.
+
+Everything must behave like a finished intelligence terminal.
+
+━━━━━━━━━━━━━━━━━━━
+1. HARD CHARACTER ENFORCEMENT (CRITICAL)
+━━━━━━━━━━━━━━━━━━━
+
+The 280 character limit must be STRICTLY enforced.
+
+Rules:
+
+- Each post MUST be <= 280 characters
+- If generated content exceeds 280:
+  → auto-trim intelligently (not cut mid-word)
+  → prioritize:
+    1. signal line
+    2. essential detail
+    3. remove filler language
+
+- textarea must:
+  → BLOCK input beyond 280
+  → show live counter (green → amber → red at 260+)
+  → prevent POST TO X if ANY post > 280
+
+- COPY / POST must ONLY use valid posts
+
+No exceptions.
+
+━━━━━━━━━━━━━━━━━━━
+2. AUTO-COMPRESSION ENGINE
+━━━━━━━━━━━━━━━━━━━
+
+Before rendering posts:
+
+Run a compression pass:
+
+- remove filler words
+- shorten phrasing
+- replace long structures:
+  "indicates that" → "signals"
+  "is likely to" → "likely"
+  "in order to" → "to"
+
+- remove narrative tone completely
+
+Goal:
+Every post must feel like:
+→ military signal
+→ intelligence log
+→ NOT a paragraph
+
+━━━━━━━━━━━━━━━━━━━
+3. FIX INFINITE LAYOUT (CRITICAL UI)
+━━━━━━━━━━━━━━━━━━━
+
+The interface must NEVER stretch infinitely.
+
+Apply strict height system:
+
+- viewport height: 100vh
+- main layout: flex row
+
+LEFT / CENTER / RIGHT must all be:
+height: 100%
+overflow: hidden
+
+Then:
+
+- internal panels scroll independently
+- NOT the whole page
+
+━━━━━━━━━━━━━━━━━━━
+4. RIGHT PANEL CONTAINMENT (DEPLOYMENT RAIL)
+━━━━━━━━━━━━━━━━━━━
+
+Fix "infinite scroll" issue:
+
+Split right panel into sections:
+
+1. SIGNAL CANDIDATES
+   - max height: 220px
+   - overflow-y: auto
+
+2. X DEPLOYMENT DRAFT
+   - max height: 420px
+   - overflow-y: auto
+
+3. X CONTROL + SCRIBE DECISION
+   - fixed bottom section
+   - always visible
+
+This creates:
+→ bounded scrolling
+→ no runaway UI
+
+━━━━━━━━━━━━━━━━━━━
+5. CENTER PANEL DEAD SPACE FIX
+━━━━━━━━━━━━━━━━━━━
+
+The empty green space = layout failure.
+
+Fix:
+
+- center panel becomes vertical flex column
+- sections stack tightly:
+  INPUT TERMINAL
+  MODE SELECTOR
+  INTELLIGENCE FLOW
+  SAGE ANALYSIS
+
+Add:
+gap: 12px
+padding: 12px
+
+NO unused vertical space.
+
+━━━━━━━━━━━━━━━━━━━
+6. POST CARD COMPRESSION
+━━━━━━━━━━━━━━━━━━━
+
+Each post card must shrink vertically.
+
+Reduce:
+- padding
+- line spacing
+- detail block size
+
+Max height per post card:
+~110–130px
+
+Goal:
+More density
+Less scrolling
+More “terminal feel”
+
+━━━━━━━━━━━━━━━━━━━
+7. TEXTAREA UX FIX
+━━━━━━━━━━━━━━━━━━━
+
+Textarea must:
+
+- auto-resize up to max height (120px)
+- then scroll internally
+- NEVER expand card infinitely
+
+Add:
+overflow-y: auto
+
+━━━━━━━━━━━━━━━━━━━
+8. FORCE CLEAN OUTPUT FORMAT
+━━━━━━━━━━━━━━━━━━━
+
+Final post structure must ALWAYS be:
+
+LINE 1:
+DOMAIN / LOCATION
+
+LINE 2:
+Primary signal (short, sharp)
+
+LINE 3:
+Compressed detail (optional, short)
+
+LINE 4:
+SRC: [TYPE] [CONFIDENCE]
+
+If it exceeds 280:
+→ remove LINE 3 first
+→ then compress LINE 2
+
+━━━━━━━━━━━━━━━━━━━
+9. VISUAL FINALIZATION
+━━━━━━━━━━━━━━━━━━━
+
+Keep current glass style.
+
+Adjust:
+
+- reduce green glow further (10–15%)
+- increase contrast on text
+- sharpen borders slightly
+- remove any gradient “wash” in empty areas
+
+Must feel:
+→ controlled
+→ tactical
+→ not glowing / not soft
+
+━━━━━━━━━━━━━━━━━━━
+10. FINAL SYSTEM BEHAVIOR
+━━━━━━━━━━━━━━━━━━━
+
+After this pass:
+
+- no post exceeds 280 chars
+- no infinite scrolling panels
+- no empty layout zones
+- deployment always clear
+- editing is constrained + safe
+- UI feels like a real intelligence console
+
+━━━━━━━━━━━━━━━━━━━
+11. RESPONSE FORMAT
+━━━━━━━━━━━━━━━━━━━
+
+Return ONLY:
+
+1. files modified
+2. how 280 enforcement is implemented (frontend + backend)
+3. how auto-compression works
+4. how layout height was locked
+5. how right panel scrolling was fixed
+6. how textarea overflow is handled
+7. confirm no post can exceed 280
+8. confirm BUILD LIVE-12 is visible
