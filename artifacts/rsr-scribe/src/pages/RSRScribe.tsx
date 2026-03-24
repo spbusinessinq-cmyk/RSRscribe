@@ -132,6 +132,11 @@ function deriveWeight(post: IntelPost, clusterSize: number, bdScore: number): Si
 const WEIGHT_COLOR: Record<SignalWeight, string> = { HIGH: RED, MEDIUM: YELLOW, LOW: "rgba(255,255,255,0.28)" };
 
 // ── SAFE FETCH ─────────────────────────────────────────────────────────────────
+// API_BASE: in dev (Replit) this is empty so relative URLs work through the proxy.
+// In deployed static builds (EdgeOne, Netlify, etc.) set VITE_API_URL to the
+// full origin of the API server, e.g. https://your-repl.worf.replit.dev
+const API_BASE: string = (import.meta.env.VITE_API_URL as string | undefined) ?? "";
+
 // Reads the response as text FIRST. If it smells like HTML (proxy/server error
 // page) we log the raw content and return a typed { success:false } object so
 // the pipeline never crashes with "Unexpected token '<'".
@@ -141,7 +146,7 @@ async function safeFetch<T extends Record<string, unknown>>(
 ): Promise<T> {
   let text = "";
   try {
-    const res = await fetch(url, options);
+    const res = await fetch(API_BASE + url, options);
     text = await res.text();
     const trimmed = text.trimStart();
     if (
@@ -418,7 +423,7 @@ export default function RSRScribe() {
   };
 
   const clearX = async () => {
-    try { await fetch("/api/x/credentials", { method: "DELETE" }); } catch {}
+    try { await fetch(API_BASE + "/api/x/credentials", { method: "DELETE" }); } catch {}
     setXCreds({ apiKey: "", apiKeySecret: "", accessToken: "", accessTokenSecret: "" });
     setXStatus("X not configured"); setXMessage(""); setXVerifiedAt(null); setXCredsExpanded(false);
     pushLog("[X] credentials cleared");
