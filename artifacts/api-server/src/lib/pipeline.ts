@@ -24,41 +24,80 @@ export type RiskOutput = {
   score: number;
 };
 
+export type IntelPost = {
+  domain: string;
+  location: string;
+  signal: string;
+  detail: string;
+  source: string;
+  confidence: "CONFIRMED" | "LIKELY" | "CONTESTED" | "UNKNOWN";
+};
+
+export type OutputMode = "THREAD" | "SINGLE_SIGNAL" | "RAPID_FIRE" | "LONGFORM_INTEL" | "BREAKING_ALERT";
+
 export type PipelineOutput = {
   sentrix: Signal[];
   sage: SageOutput;
-  axion: string[];
+  axion: IntelPost[];
   blackDog: RiskOutput;
   escalationScore: number;
   blockedReason: string;
 };
 
-const SYSTEM_PROMPT = `You are RSR SCRIBE — an intelligence analyst producing structured outputs from real source material.
+const SYSTEM_PROMPT = `You are RSR SCRIBE — a full-spectrum intelligence signal processor.
 
-RULES:
-- All outputs derive directly from the source text
-- Never invent facts, actors, or locations not in the source
-- Never include raw URLs anywhere in any output field
-- SENTRIX signals must be specific factual claims or developments from the text
-- SAGE analysis must be grounded, not generic
-- AXION posts are the final thread: punchy, publish-ready, factual
-- If evidence is thin, say so honestly — not everything is HIGH risk
-- Output valid JSON only — no markdown, no explanation text`;
+MANDATE: Convert raw source material into structured intelligence signals across all domains of power.
 
-const USER_PROMPT = (headline: string, body: string, sourceHost: string, scope: string) =>
+SIGNAL DOMAINS (detect any that apply):
+1. MILITARY/MOVEMENT — troop movement, air/naval activity, positioning shifts
+2. GEOPOLITICAL/POLICY — government decisions, diplomatic positioning, sanctions, legislation
+3. ECONOMIC/MARKET — energy prices, capital flow, supply chain disruption, currency instability
+4. CYBER/INFRASTRUCTURE — attacks, grid disruptions, telecom outages, system anomalies
+5. INFORMATION/NARRATIVE — propaganda shifts, coordinated messaging, narrative alignment
+6. STRATEGIC POSTURE — force readiness, escalation signals, deterrence positioning
+
+LANGUAGE RULES — MANDATORY:
+- FORBIDDEN: "said", "according to", "the report states", "it was noted", "in a significant development"
+- Write like intelligence terminal output: compressed, analytical, tactical
+- No narrative sentences. No storytelling tone. High signal density.
+- Never include raw URLs in any field
+- If source is vague, infer the underlying signal and convert to domain-relevant intelligence
+
+OUTPUT: Valid JSON only — no markdown, no explanation text`;
+
+function modeInstruction(mode: OutputMode): string {
+  switch (mode) {
+    case "SINGLE_SIGNAL":
+      return "Produce exactly 1 post in axion — the single highest-impact signal only. Choose the most operationally significant development.";
+    case "RAPID_FIRE":
+      return "Produce 3-5 posts in axion. Ultra-compressed: signal field is one tight sentence max. Detail is one phrase. No verbosity. Speed over depth.";
+    case "LONGFORM_INTEL":
+      return "Produce 6-8 posts in axion. Full domain coverage. Maximum detail depth. Stack signals across all relevant domains. Do not truncate.";
+    case "BREAKING_ALERT":
+      return "Produce 1-3 posts in axion. Format: DOMAIN — LOCATION only as header. Signal is the key alert. Detail is one compressed sentence. Source is brief. Move fast.";
+    case "THREAD":
+    default:
+      return "Produce 4-6 posts in axion. Each post MUST represent a DIFFERENT signal domain when possible. POST 1: primary event or movement. POST 2: policy or government response. POST 3: economic or infrastructure impact. POST 4+: strategic assessment or secondary signals. No domain repetition.";
+  }
+}
+
+const USER_PROMPT = (headline: string, body: string, sourceHost: string, scope: string, mode: OutputMode) =>
   `HEADLINE: ${headline}
 SOURCE: ${sourceHost}
 SCOPE: ${scope}
+OUTPUT MODE: ${mode}
 
 ARTICLE:
 ${body}
 
-Produce this JSON:
+${modeInstruction(mode)}
+
+Produce this exact JSON:
 
 {
   "sentrix": [
     {
-      "text": "Specific factual claim from source (min 40 chars, no URLs)",
+      "text": "Specific factual signal from source (min 40 chars, no URLs, intelligence tone)",
       "classification": "CONFIRMED|LIKELY|CONTESTED|UNKNOWN",
       "label": "CONFIRMED|LIKELY|CONTESTED|UNKNOWN",
       "confidence": 0-100,
@@ -66,35 +105,38 @@ Produce this JSON:
     }
   ],
   "sage": {
-    "WHAT": "Core event — one concise sentence",
-    "WHY": "Underlying cause or driver from source",
-    "MECHANISM": "How it is unfolding",
-    "CONSTRAINTS": "Limiting factors on response or escalation",
-    "CHANGING": "What is shifting from the source",
-    "LOCATION": "Geographic locations in source or 'Unspecified'",
-    "DOMAIN": "Cybersecurity|Energy Markets|Geopolitical|Military|Economic|Technology|Other"
+    "WHAT": "Core event — one compressed intelligence sentence",
+    "WHY": "Underlying driver or cause from source",
+    "MECHANISM": "How it is unfolding — process or method",
+    "CONSTRAINTS": "Limiting factors on escalation or response",
+    "CHANGING": "What is shifting — from source",
+    "LOCATION": "Specific geographic locations mentioned or 'Unspecified'",
+    "DOMAIN": "Primary domain: Military|Geopolitical|Economic|Cyber|Information|Strategic"
   },
   "axion": [
-    "Post 1 — lead with the strongest confirmed fact. Concise. Max 220 chars.",
-    "Post 2 — different sentence structure. New information only.",
-    "Post 3 — context, actor, or consequence not in Post 1 or 2.",
-    "Post 4 — uncertainty or constraint if relevant, otherwise next key fact."
+    {
+      "domain": "SIGNAL DOMAIN (e.g. GEOPOLITICAL/POLICY, MILITARY/MOVEMENT, ECONOMIC/MARKET, CYBER/INFRASTRUCTURE, INFORMATION/NARRATIVE, STRATEGIC POSTURE)",
+      "location": "SPECIFIC COUNTRY, REGION, OR OPERATIONAL ZONE — required, no omissions",
+      "signal": "What is happening — compressed, tactical, no narrative, no forbidden phrases",
+      "detail": "Operational detail — one compressed sentence with maximum information density",
+      "source": "official | OSINT | local | mixed",
+      "confidence": "CONFIRMED|LIKELY|CONTESTED|UNKNOWN"
+    }
   ],
   "blackDog": {
     "level": "LOW|ELEVATED|HIGH|CRITICAL",
-    "reason": "Specific rationale from source — no generic placeholders",
+    "reason": "Specific risk rationale from source — no generic language",
     "score": 0-100
   }
-}
-
-AXION rules: no URLs, no hashtags, no emojis, no filler phrases like 'It is worth noting' or 'In a significant development'. Each post must stand alone. Vary structure. No sentence should start the same way as another.`;
+}`;
 
 export async function runPipeline(
   headline: string,
   body: string,
   sourceHost: string,
   scope: string,
-  logs: string[]
+  logs: string[],
+  outputMode: OutputMode = "THREAD"
 ): Promise<PipelineOutput> {
   const empty: PipelineOutput = {
     sentrix: [],
@@ -110,10 +152,10 @@ export async function runPipeline(
     return { ...empty, blockedReason: "Source text too short for analysis" };
   }
 
-  logs.push("[SENTRIX] running signal classification");
-  logs.push("[SAGE] generating analytical framework");
-  logs.push("[AXION] building output thread");
-  logs.push("[BLACK DOG] running risk evaluation");
+  logs.push(`[SENTRIX] running signal classification`);
+  logs.push(`[SAGE] generating analytical framework`);
+  logs.push(`[AXION] building output — mode: ${outputMode}`);
+  logs.push(`[BLACK DOG] running risk evaluation`);
 
   let raw: string;
   try {
@@ -122,7 +164,7 @@ export async function runPipeline(
       max_completion_tokens: 4096,
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: USER_PROMPT(headline, body.slice(0, 3200), sourceHost, scope) },
+        { role: "user", content: USER_PROMPT(headline, body.slice(0, 3200), sourceHost, scope, outputMode) },
       ],
     });
 
@@ -138,7 +180,7 @@ export async function runPipeline(
     return { ...empty, blockedReason: `Analysis failed: ${reason}` };
   }
 
-  let parsed: Partial<{ sentrix: Signal[]; sage: SageOutput; axion: string[]; blackDog: RiskOutput }>;
+  let parsed: Partial<{ sentrix: Signal[]; sage: SageOutput; axion: IntelPost[]; blackDog: RiskOutput }>;
 
   try {
     const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
@@ -154,22 +196,38 @@ export async function runPipeline(
   const sentrix = Array.isArray(parsed.sentrix)
     ? parsed.sentrix.filter((s) => s.text?.length >= 35 && !containsUrls(s.text)).slice(0, 8)
     : [];
+
   const sage: SageOutput = parsed.sage ?? empty.sage;
-  const axion = Array.isArray(parsed.axion)
-    ? parsed.axion.filter((l) => typeof l === "string" && l.length > 0 && !containsUrls(l)).slice(0, 6)
+
+  const axion: IntelPost[] = Array.isArray(parsed.axion)
+    ? parsed.axion
+        .filter((p): p is IntelPost => {
+          if (!p || typeof p !== "object") return false;
+          if (!p.domain || !p.location || !p.signal) return false;
+          const text = [p.domain, p.location, p.signal, p.detail ?? ""].join(" ");
+          return !containsUrls(text);
+        })
+        .slice(0, 8)
     : [];
+
   const blackDog: RiskOutput = parsed.blackDog ?? { level: "PENDING", reason: "Evaluation incomplete", score: 0 };
 
   logs.push(`[SENTRIX] ${sentrix.length} signals extracted`);
   logs.push(`[SAGE] analysis complete`);
-  logs.push(`[AXION] ${axion.length} deployment lines generated`);
+  logs.push(`[AXION] ${axion.length} intelligence posts — mode: ${outputMode}`);
   logs.push(`[BLACK DOG] risk level: ${blackDog.level} (${blackDog.score})`);
+
+  // Mode-aware minimum count
+  const minCount = outputMode === "SINGLE_SIGNAL" || outputMode === "BREAKING_ALERT" ? 1
+    : outputMode === "RAPID_FIRE" ? 2
+    : outputMode === "LONGFORM_INTEL" ? 3
+    : 3; // THREAD default
 
   let blockedReason = "";
   if (sentrix.length < 3) {
-    blockedReason = `Only ${sentrix.length} meaningful signals extracted — minimum 3 required`;
-  } else if (axion.length < 3) {
-    blockedReason = `Only ${axion.length} clean output lines — minimum 3 required`;
+    blockedReason = `Only ${sentrix.length} signals extracted — minimum 3 required`;
+  } else if (axion.length < minCount) {
+    blockedReason = `Only ${axion.length} intelligence posts — mode ${outputMode} requires ${minCount}+`;
   }
 
   return { sentrix, sage, axion, blackDog, escalationScore: blackDog.score, blockedReason };

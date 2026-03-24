@@ -6,10 +6,11 @@ import { runPipeline } from "../lib/pipeline.js";
 const router: IRouter = Router();
 
 router.post("/auto-scan", async (req, res) => {
-  const { scope = "GLOBAL", window: windowCode = "6H", leadUrl } = req.body as {
+  const { scope = "GLOBAL", window: windowCode = "6H", leadUrl, outputMode = "THREAD" } = req.body as {
     scope?: string;
     window?: string;
     leadUrl?: string;
+    outputMode?: string;
   };
 
   const t0 = Date.now();
@@ -95,7 +96,7 @@ router.post("/auto-scan", async (req, res) => {
     }
 
     const tPipeline = Date.now();
-    const pipeline = await runPipeline(ingest.headline, ingest.body, ingest.sourceHost, scope, logs);
+    const pipeline = await runPipeline(ingest.headline, ingest.body, ingest.sourceHost, scope, logs, outputMode as import("../lib/pipeline.js").OutputMode);
     logs.push(`[TIMER] AI pipeline: ${Date.now() - tPipeline}ms`);
     logs.push(`[TIMER] total scan: ${Date.now() - t0}ms`);
 
