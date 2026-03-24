@@ -131,6 +131,42 @@ function deriveWeight(post: IntelPost, clusterSize: number, bdScore: number): Si
 }
 const WEIGHT_COLOR: Record<SignalWeight, string> = { HIGH: RED, MEDIUM: YELLOW, LOW: "rgba(255,255,255,0.28)" };
 
+// ── SAFE FETCH ─────────────────────────────────────────────────────────────────
+// Reads the response as text FIRST. If it smells like HTML (proxy/server error
+// page) we log the raw content and return a typed { success:false } object so
+// the pipeline never crashes with "Unexpected token '<'".
+async function safeFetch<T extends Record<string, unknown>>(
+  url: string,
+  options?: RequestInit
+): Promise<T> {
+  let text = "";
+  try {
+    const res = await fetch(url, options);
+    text = await res.text();
+    const trimmed = text.trimStart();
+    if (
+      !trimmed ||
+      trimmed.startsWith("<") ||
+      trimmed.toLowerCase().includes("<!doctype") ||
+      trimmed.toLowerCase().startsWith("<html")
+    ) {
+      console.error("[RSR SCRIBE] SCAN SOURCE FAILED — NON JSON RESPONSE:", text.slice(0, 300));
+      return { success: false, reason: "Scan failed — no valid data returned" } as unknown as T;
+    }
+    return JSON.parse(text) as T;
+  } catch (err) {
+    const isHtml = text.trimStart().startsWith("<");
+    console.error(
+      isHtml
+        ? "[RSR SCRIBE] SCAN SOURCE FAILED — NON JSON RESPONSE:"
+        : "[RSR SCRIBE] JSON parse error:",
+      text.slice(0, 300),
+      err
+    );
+    return { success: false, reason: "Scan failed — no valid data returned" } as unknown as T;
+  }
+}
+
 // ── ICONS ──────────────────────────────────────────────────────────────────────
 const ShieldIcon = () => <svg width="9" height="10" viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink:0 }}><path d="M12 1L3 5v6c0 5.25 3.75 10.15 9 11.25C17.25 21.15 21 16.25 21 11V5L12 1z" opacity="0.85"/></svg>;
 const CopyIcon   = () => <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="1"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>;
@@ -341,8 +377,7 @@ export default function RSRScribe() {
     const gen = ++scanGen.current;
     animatePipeline(gen);
     try {
-      const res = await fetch("/api/auto-scan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scope, window: windowCode, outputMode, ...extra }) });
-      const data = await res.json() as AutoScanResponse;
+      const data = await safeFetch<AutoScanResponse>("/api/auto-scan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scope, window: windowCode, outputMode, ...extra }) });
       scanGen.current = gen + 1;
       await applyData(data);
     } catch (err) {
@@ -358,16 +393,16 @@ export default function RSRScribe() {
   // ── X ───────────────────────────────────────────────────────────────────────
   const loadXStatus = async () => {
     try {
-      const d = await (await fetch("/api/x/credentials")).json();
-      setXStatus(d?.status || (d?.configured ? "X configured" : "X not configured"));
+      const d = await safeFetch<Record<string, unknown>>("/api/x/credentials");
+      setXStatus((d?.status as string) || (d?.configured ? "X configured" : "X not configured"));
       if (d?.configured) setXMessage("X credentials saved");
     } catch { setXStatus("X not configured"); }
   };
 
   const saveXCreds = async () => {
     try {
-      const d = await (await fetch("/api/x/credentials", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(xCreds) })).json();
-      setXStatus(d?.status || "X configured"); setXMessage(d?.message || "");
+      const d = await safeFetch<Record<string, unknown>>("/api/x/credentials", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(xCreds) });
+      setXStatus((d?.status as string) || "X configured"); setXMessage((d?.message as string) || "");
       if (d?.status === "X connected") { setXVerifiedAt(new Date().toLocaleTimeString()); setXCredsExpanded(false); }
       pushLog(`[X] ${d?.message || "credentials saved"}`);
     } catch { setXStatus("X not configured"); }
@@ -375,8 +410,8 @@ export default function RSRScribe() {
 
   const testX = async () => {
     try {
-      const d = await (await fetch("/api/x/test", { method: "POST" })).json();
-      setXStatus(d.status); setXMessage(d.message);
+      const d = await safeFetch<Record<string, unknown>>("/api/x/test", { method: "POST" });
+      setXStatus((d.status as string)); setXMessage((d.message as string));
       if (d.status === "X connected") { setXVerifiedAt(new Date().toLocaleTimeString()); setXCredsExpanded(false); }
       pushLog(`[X] ${d.message}`);
     } catch { setXStatus("X test failed"); setXMessage("Connection test failed"); }
@@ -394,8 +429,8 @@ export default function RSRScribe() {
     setPosting(true);
     try {
       const lines = axion.map((_, i) => getEditedText(i));
-      const d = await (await fetch("/api/post", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ preview: false, mode: "THREAD", lines }) })).json();
-      setXMessage(d.message); setPosted(true); pushLog(`[X] ${d.message}`);
+      const d = await safeFetch<Record<string, unknown>>("/api/post", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ preview: false, mode: "THREAD", lines }) });
+      setXMessage((d.message as string)); setPosted(true); pushLog(`[X] ${d.message}`);
     } catch { setXMessage("Post failed — retry"); } finally { setPosting(false); }
   };
 
