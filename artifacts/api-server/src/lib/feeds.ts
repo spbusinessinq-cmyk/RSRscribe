@@ -14,66 +14,33 @@ type FeedDef = {
   name: string;
   url: string;
   scope: string[];
+  priority: number;
 };
 
 const FEEDS: FeedDef[] = [
-  {
-    name: "BBC World",
-    url: "https://feeds.bbci.co.uk/news/world/rss.xml",
-    scope: ["GLOBAL", "CONFLICT"],
-  },
-  {
-    name: "BBC Business",
-    url: "https://feeds.bbci.co.uk/news/business/rss.xml",
-    scope: ["GLOBAL", "ENERGY"],
-  },
-  {
-    name: "Al Jazeera World",
-    url: "https://www.aljazeera.com/xml/rss/all.xml",
-    scope: ["GLOBAL", "CONFLICT"],
-  },
-  {
-    name: "Reuters World",
-    url: "https://feeds.reuters.com/Reuters/worldNews",
-    scope: ["GLOBAL", "CONFLICT"],
-  },
-  {
-    name: "Reuters Business",
-    url: "https://feeds.reuters.com/reuters/businessNews",
-    scope: ["GLOBAL", "ENERGY"],
-  },
-  {
-    name: "BleepingComputer",
-    url: "https://www.bleepingcomputer.com/feed/",
-    scope: ["CYBER"],
-  },
-  {
-    name: "The Hacker News",
-    url: "https://thehackernews.com/feeds/posts/default",
-    scope: ["CYBER"],
-  },
-  {
-    name: "Krebs on Security",
-    url: "https://krebsonsecurity.com/feed/",
-    scope: ["CYBER"],
-  },
-  {
-    name: "AP World",
-    url: "https://feeds.apnews.com/apnews/worldnews",
-    scope: ["GLOBAL", "CONFLICT"],
-  },
-  {
-    name: "AP Technology",
-    url: "https://feeds.apnews.com/apnews/technology",
-    scope: ["CYBER"],
-  },
+  { name: "BBC World",        url: "https://feeds.bbci.co.uk/news/world/rss.xml",          scope: ["GLOBAL", "CONFLICT"], priority: 2 },
+  { name: "Al Jazeera World", url: "https://www.aljazeera.com/xml/rss/all.xml",             scope: ["GLOBAL", "CONFLICT"], priority: 2 },
+  { name: "AP World",         url: "https://feeds.apnews.com/apnews/worldnews",             scope: ["GLOBAL", "CONFLICT"], priority: 1 },
+  { name: "Reuters World",    url: "https://feeds.reuters.com/Reuters/worldNews",           scope: ["GLOBAL", "CONFLICT"], priority: 3 },
+  { name: "BBC Business",     url: "https://feeds.bbci.co.uk/news/business/rss.xml",        scope: ["GLOBAL", "ENERGY"],   priority: 2 },
+  { name: "Reuters Business", url: "https://feeds.reuters.com/reuters/businessNews",        scope: ["GLOBAL", "ENERGY"],   priority: 1 },
+  { name: "The Hacker News",  url: "https://thehackernews.com/feeds/posts/default",        scope: ["CYBER"],              priority: 1 },
+  { name: "BleepingComputer", url: "https://www.bleepingcomputer.com/feed/",               scope: ["CYBER"],              priority: 2 },
+  { name: "Krebs on Security",url: "https://krebsonsecurity.com/feed/",                    scope: ["CYBER"],              priority: 3 },
+  { name: "AP Technology",    url: "https://feeds.apnews.com/apnews/technology",           scope: ["CYBER"],              priority: 3 },
 ];
+
+const MAX_FEEDS_PER_SCOPE = 4;
 
 const parser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: "@_",
   textNodeName: "#text",
 });
+
+type CacheEntry = { data: RawCandidate[]; expiresAt: number };
+const feedCache = new Map<string, CacheEntry>();
+const CACHE_TTL_MS = 75_000;
 
 function extractHost(url: string): string {
   try {
@@ -123,13 +90,16 @@ function stripHtml(html: string): string {
   return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 }
 
-async function fetchFeed(
-  feed: FeedDef,
-  windowMs: number
-): Promise<RawCandidate[]> {
+async function fetchFeed(feed: FeedDef, windowMs: number): Promise<RawCandidate[]> {
+  const cacheKey = `${feed.url}::${windowMs}`;
+  const cached = feedCache.get(cacheKey);
+  if (cached && Date.now() < cached.expiresAt) {
+    return cached.data;
+  }
+
   const res = await fetch(feed.url, {
-    headers: { "User-Agent": "RSR-Scribe-Feed-Reader/3.0" },
-    signal: AbortSignal.timeout(8000),
+    headers: { "User-Agent": "RSR-Scribe-Feed-Reader/4.0" },
+    signal: AbortSignal.timeout(7000),
   });
 
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -146,21 +116,15 @@ async function fetchFeed(
     const link = resolveLink(item.link);
     if (!title || !link) continue;
 
-    const rawDate =
-      item.pubDate ||
-      item.published ||
-      item.updated ||
-      item["dc:date"] ||
-      new Date().toISOString();
+    const rawDate = item.pubDate || item.published || item.updated || item["dc:date"] || new Date().toISOString();
     const publishedAt = new Date(String(rawDate)).toISOString();
     if (isNaN(new Date(publishedAt).getTime())) continue;
 
     const ts = new Date(publishedAt).getTime();
     if (ts < cutoff) continue;
 
-    const rawDesc =
-      item.description || item.summary || item.content || "";
-    const summary = stripHtml(String(rawDesc)).slice(0, 300);
+    const rawDesc = item.description || item.summary || item.content || "";
+    const summary = stripHtml(String(rawDesc)).slice(0, 280);
 
     candidates.push({
       headline: stripHtml(String(title)).slice(0, 200),
@@ -173,38 +137,43 @@ async function fetchFeed(
     });
   }
 
+  feedCache.set(cacheKey, { data: candidates, expiresAt: Date.now() + CACHE_TTL_MS });
   return candidates;
 }
 
 export const WINDOW_MAP: Record<string, number> = {
-  "1H": 3600000,
-  "3H": 3 * 3600000,
-  "6H": 6 * 3600000,
-  "12H": 12 * 3600000,
-  "24H": 24 * 3600000,
+  "1H":  3_600_000,
+  "3H":  3 * 3_600_000,
+  "6H":  6 * 3_600_000,
+  "12H": 12 * 3_600_000,
+  "24H": 24 * 3_600_000,
 };
 
-export async function fetchCandidates(
-  scope: string,
-  windowCode: string,
-  logs: string[]
-): Promise<RawCandidate[]> {
+export async function fetchCandidates(scope: string, windowCode: string, logs: string[]): Promise<RawCandidate[]> {
   const windowMs = WINDOW_MAP[windowCode] ?? WINDOW_MAP["6H"];
-  const relevant = FEEDS.filter((f) => f.scope.includes(scope));
+
+  const relevant = FEEDS
+    .filter((f) => f.scope.includes(scope))
+    .sort((a, b) => a.priority - b.priority)
+    .slice(0, MAX_FEEDS_PER_SCOPE);
+
+  const t0 = Date.now();
 
   const results = await Promise.allSettled(
     relevant.map(async (feed) => {
+      const ft = Date.now();
       const items = await fetchFeed(feed, windowMs);
-      logs.push(`[FEED] ${feed.name} returned ${items.length} items`);
+      const ms = Date.now() - ft;
+      logs.push(`[FEED] ${feed.name}: ${items.length} items (${ms}ms)`);
       return items;
     })
   );
 
+  logs.push(`[TIMER] feed fetch: ${Date.now() - t0}ms`);
+
   const all: RawCandidate[] = [];
   for (const r of results) {
-    if (r.status === "fulfilled") {
-      all.push(...r.value);
-    }
+    if (r.status === "fulfilled") all.push(...r.value);
   }
 
   const seen = new Set<string>();
@@ -219,53 +188,36 @@ export async function fetchCandidates(
   return deduped;
 }
 
-export function rankCandidates(
-  candidates: RawCandidate[],
-  scope: string
-): RawCandidate[] {
+export function rankCandidates(candidates: RawCandidate[], scope: string): RawCandidate[] {
   const URGENCY_TERMS = [
-    "breaking",
-    "alert",
-    "warning",
-    "critical",
-    "emergency",
-    "urgent",
-    "attack",
-    "crisis",
-    "killed",
-    "dead",
-    "explosion",
-    "strike",
-    "invasion",
-    "escalat",
-    "threat",
-    "sanctions",
-    "hack",
-    "breach",
-    "leak",
-    "shutdown",
+    "breaking", "alert", "warning", "critical", "emergency", "urgent",
+    "attack", "crisis", "killed", "dead", "explosion", "strike", "invasion",
+    "escalat", "threat", "sanctions", "hack", "breach", "leak", "shutdown",
   ];
 
   const SCOPE_BOOSTS: Record<string, string[]> = {
     CONFLICT: ["war", "conflict", "military", "troops", "ceasefire", "nato", "battle", "missile", "attack", "russia", "ukraine", "israel", "iran", "china"],
-    ENERGY: ["oil", "gas", "energy", "barrel", "opec", "pipeline", "lng", "crude", "power", "electricity", "fuel", "carbon", "climate"],
-    CYBER: ["hack", "breach", "malware", "ransomware", "vuln", "cve", "exploit", "infra", "attack", "zero-day", "phishing", "backdoor"],
-    GLOBAL: [],
+    ENERGY:   ["oil", "gas", "energy", "barrel", "opec", "pipeline", "lng", "crude", "power", "electricity", "fuel", "carbon", "climate"],
+    CYBER:    ["hack", "breach", "malware", "ransomware", "vuln", "cve", "exploit", "infra", "attack", "zero-day", "phishing", "backdoor"],
+    GLOBAL:   [],
   };
 
   const boostTerms = SCOPE_BOOSTS[scope] || [];
   const now = Date.now();
 
-  return candidates
+  const t0 = Date.now();
+  const ranked = candidates
     .map((c) => {
       const lower = (c.headline + " " + c.summary).toLowerCase();
       const ageMs = now - new Date(c.publishedAt).getTime();
-      const ageFactor = Math.max(0, 1 - ageMs / (24 * 3600000));
+      const ageFactor = Math.max(0, 1 - ageMs / (24 * 3_600_000));
       const urgencyCount = URGENCY_TERMS.filter((t) => lower.includes(t)).length;
       const scopeCount = boostTerms.filter((t) => lower.includes(t)).length;
       const score = Math.round(ageFactor * 50 + urgencyCount * 8 + scopeCount * 10);
       return { ...c, score };
     })
-    .sort((a, b) => (b as typeof b & { score: number }).score - (a as typeof a & { score: number }).score)
-    .slice(0, 10) as (RawCandidate & { score: number })[];
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 10);
+
+  return ranked as (RawCandidate & { score: number })[];
 }

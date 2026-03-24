@@ -4,6 +4,7 @@ const ACCENT = "#00ff88";
 const BG = "#020303";
 const GLASS = "rgba(9, 20, 16, 0.72)";
 const BORDER = "rgba(0, 255, 136, 0.24)";
+const RED = "#ff6868";
 const PIPELINE = ["INPUT", "SENTRIX", "SAGE", "AXION", "BLACK DOG", "SCRIBE"] as const;
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -138,6 +139,23 @@ function GridBackground() {
   );
 }
 
+function CopyIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="9" y="9" width="13" height="13" rx="1" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+}
+
 export default function RSRScribe() {
   const [input, setInput] = useState("");
   const [inputLocked, setInputLocked] = useState(false);
@@ -163,7 +181,10 @@ export default function RSRScribe() {
   const [xStatus, setXStatus] = useState<XStatus>("X not configured");
   const [xMessage, setXMessage] = useState("");
   const [posting, setPosting] = useState(false);
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [copiedAll, setCopiedAll] = useState(false);
   const logRef = useRef<HTMLDivElement | null>(null);
+  const scanGenRef = useRef(0);
 
   const meaningfulSignals = sentrix?.filter((s) => s.text.length >= 35) ?? [];
   const outputContainsUrls = useMemo(() => {
@@ -211,6 +232,7 @@ export default function RSRScribe() {
     setSourceRecord(null);
     setBlockedReason("");
     setSelectedCandidateUrl("");
+    setActiveStage("INPUT");
     setStageStatuses(Object.fromEntries(PIPELINE.map((stage) => [stage, "STANDBY"])));
   };
 
@@ -227,11 +249,32 @@ export default function RSRScribe() {
     setActiveStage(success ? "COMPLETE" : targetStage);
   };
 
+  const startPipelineAnimation = (gen: number) => {
+    type Step = [keyof typeof stageStatuses, PipelineNodeState, number];
+    const steps: Step[] = [
+      ["INPUT",     "PROCESSING", 0],
+      ["INPUT",     "COMPLETE",   2400],
+      ["SENTRIX",   "PROCESSING", 2400],
+      ["SENTRIX",   "COMPLETE",   12000],
+      ["SAGE",      "PROCESSING", 12000],
+      ["SAGE",      "COMPLETE",   19000],
+      ["AXION",     "PROCESSING", 19000],
+      ["AXION",     "COMPLETE",   25500],
+      ["BLACK DOG", "PROCESSING", 25500],
+    ];
+    for (const [stage, status, delay] of steps) {
+      setTimeout(() => {
+        if (scanGenRef.current !== gen) return;
+        setStageStatuses((prev) => ({ ...prev, [stage]: status }));
+      }, delay);
+    }
+  };
+
   const revealThread = async (lines: string[] | null | undefined) => {
     setVisibleThreadCount(0);
     if (!lines?.length) return;
     for (let i = 1; i <= lines.length; i += 1) {
-      await sleep(180);
+      await sleep(170);
       setVisibleThreadCount(i);
     }
   };
@@ -284,8 +327,8 @@ export default function RSRScribe() {
       pushLog("[INPUT] source received");
       setStageStatuses((prev) => ({ ...prev, INPUT: "COMPLETE", SENTRIX: "PROCESSING" }));
       await sleep(300);
-      pushLog("[MANUAL] preview mode is wired for AUTO SCAN route, not local parser");
-      setBlockedReason("Manual preview path is not wired in this preview build.");
+      pushLog("[MANUAL] AUTO SCAN route required for full pipeline");
+      setBlockedReason("Manual preview path is not wired in this build.");
       setStageStatuses((prev) => ({ ...prev, SENTRIX: "FAILED" }));
       setActiveStage("SENTRIX");
     } finally {
@@ -298,8 +341,9 @@ export default function RSRScribe() {
     resetOutputs();
     setInputLocked(true);
     setLogs(["SYSTEM ONLINE", "AUTO SCAN INITIALIZED"]);
-    pushLog("[AUTO SCAN] started");
-    pushLog(`[AUTO SCAN] scope=${scope} window=${windowCode}`);
+
+    const gen = ++scanGenRef.current;
+    startPipelineAnimation(gen);
 
     try {
       const response = await fetch("/api/auto-scan", {
@@ -309,8 +353,10 @@ export default function RSRScribe() {
       });
 
       const data: AutoScanResponse = await response.json();
+      scanGenRef.current = gen + 1;
       await applyAutoScanData(data);
     } catch (error) {
+      scanGenRef.current = gen + 1;
       const message = error instanceof Error ? error.message : "AUTO SCAN request failed";
       setBlockedReason(message);
       setCandidates([]);
@@ -323,9 +369,13 @@ export default function RSRScribe() {
 
   const promoteCandidate = async (candidate: Candidate) => {
     if (inputLocked) return;
+    resetOutputs();
     setInputLocked(true);
     setSelectedCandidateUrl(candidate.url);
-    pushLog(`[RANK] lead candidate selected: ${candidate.headline}`);
+    setLogs(["SYSTEM ONLINE", `CANDIDATE PROMOTED: ${candidate.headline.slice(0, 60)}`]);
+
+    const gen = ++scanGenRef.current;
+    startPipelineAnimation(gen);
 
     try {
       const response = await fetch("/api/auto-scan", {
@@ -335,11 +385,14 @@ export default function RSRScribe() {
       });
 
       const data: AutoScanResponse = await response.json();
+      scanGenRef.current = gen + 1;
       await applyAutoScanData(data);
     } catch (error) {
+      scanGenRef.current = gen + 1;
       const message = error instanceof Error ? error.message : "Candidate selection failed";
       setBlockedReason(message);
       pushLog(`[SCRIBE] blocked — ${message}`);
+      syncStageStatuses("INPUT", false);
     } finally {
       setInputLocked(false);
     }
@@ -402,12 +455,11 @@ export default function RSRScribe() {
 
   const postToX = async (preview = false) => {
     if ((!postToXEnabled && !preview) || !axion?.length) {
-      const message = !ready ? "Posting blocked until deployment-ready" : xStatus !== "X connected" ? "X connection test failed" : "Posting blocked until deployment-ready";
+      const message = !ready ? "Deployment blocked — pipeline not ready" : xStatus !== "X connected" ? "X connection not verified" : "Deployment blocked";
       setXMessage(message);
       pushLog(`[X] ${message}`);
       return;
     }
-
     setPosting(true);
     try {
       const response = await fetch("/api/post", {
@@ -426,6 +478,19 @@ export default function RSRScribe() {
     }
   };
 
+  const copyLine = (text: string, index: number) => {
+    navigator.clipboard.writeText(text).catch(() => {});
+    setCopiedIndex(index);
+    setTimeout(() => setCopiedIndex(null), 1800);
+  };
+
+  const copyAll = () => {
+    if (!axion?.length) return;
+    navigator.clipboard.writeText(axion.join("\n\n")).catch(() => {});
+    setCopiedAll(true);
+    setTimeout(() => setCopiedAll(false), 2000);
+  };
+
   const validation = [
     { label: "Source content readable", ok: !!cleanedSource?.extracted },
     { label: "3+ meaningful signals", ok: meaningfulSignals.length >= 3 },
@@ -440,26 +505,33 @@ export default function RSRScribe() {
       <GridBackground />
 
       <div className="relative z-10 mx-auto max-w-[1700px] p-4 md:p-6">
+        {/* Header */}
         <div className="mb-4 border px-4 py-3 uppercase tracking-[0.28em] text-[11px] md:flex md:items-center md:justify-between" style={{ borderColor: BORDER, background: "rgba(0,0,0,0.28)", boxShadow: "0 0 30px rgba(0,255,136,0.05)" }}>
           <div>
             <div className="text-white">RSR SCRIBE — SIGNAL DEPLOYMENT TERMINAL</div>
-            <div className="mt-1" style={{ color: ACCENT }}>AUTO SCAN PREVIEW // BUILD LIVE-3</div>
+            <div className="mt-1" style={{ color: ACCENT }}>AUTO SCAN PREVIEW // BUILD LIVE-4</div>
           </div>
           <div className="mt-3 md:mt-0 flex gap-6 text-[10px] text-white/65">
             <span>MODE // ONE-BUTTON COLLECTION</span>
-            <span>STATE // {ready ? "READY" : "BLOCKED"}</span>
+            <span>STATE // {inputLocked ? "SCANNING" : ready ? "READY" : "BLOCKED"}</span>
             <span>RISK // {blackDog?.level ?? "PENDING"}</span>
           </div>
         </div>
 
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[330px_minmax(0,1fr)_420px]">
+
+          {/* LEFT COLUMN */}
           <div className="space-y-4">
-            <Panel title="STATUS" rightTitle={ready ? "READY" : "BLOCKED"}>
+            <Panel title="STATUS" rightTitle={inputLocked ? "SCANNING" : ready ? "READY" : "BLOCKED"}>
               <div className="space-y-3 text-sm">
                 <div className="border px-3 py-3" style={{ borderColor: BORDER, background: "rgba(0,0,0,0.22)" }}>
                   <div className="text-[11px] uppercase tracking-[0.22em] text-white/60">Deployment State</div>
-                  <div className="mt-2 text-2xl font-semibold" style={{ color: ready ? ACCENT : "#ff6868" }}>{ready ? "READY" : "BLOCKED"}</div>
-                  <div className="mt-2 text-white/65 text-xs">{blockedReason || (sourceRecord ? "Lead source loaded into system." : "Awaiting signal input or AUTO SCAN.")}</div>
+                  <div className="mt-2 text-2xl font-semibold" style={{ color: inputLocked ? ACCENT : ready ? ACCENT : RED }}>
+                    {inputLocked ? "SCANNING" : ready ? "READY" : "BLOCKED"}
+                  </div>
+                  <div className="mt-2 text-white/65 text-xs">
+                    {inputLocked ? "Intelligence pipeline running..." : blockedReason || (sourceRecord ? "Lead source loaded into system." : "Awaiting signal input or AUTO SCAN.")}
+                  </div>
                 </div>
 
                 <div>
@@ -468,7 +540,7 @@ export default function RSRScribe() {
                     {validation.map((item) => (
                       <div key={item.label} className="flex items-center justify-between border px-3 py-2 text-xs" style={{ borderColor: BORDER, background: "rgba(0,0,0,0.18)" }}>
                         <span className="text-white/80">{item.label}</span>
-                        <span style={{ color: item.ok ? ACCENT : "#ff6868" }}>{item.ok ? "PASS" : "FAIL"}</span>
+                        <span style={{ color: item.ok ? ACCENT : RED }}>{item.ok ? "PASS" : "FAIL"}</span>
                       </div>
                     ))}
                   </div>
@@ -496,11 +568,14 @@ export default function RSRScribe() {
                     </div>
                     <div className="mt-2 text-white/80 leading-5">{signal.text}</div>
                   </div>
-                )) : <div className="text-white/55">Awaiting signal input</div>}
+                )) : (
+                  <div className="text-white/55">{inputLocked ? "Pipeline running..." : "Awaiting signal input"}</div>
+                )}
               </div>
             </Panel>
           </div>
 
+          {/* CENTER COLUMN */}
           <div className="space-y-4">
             <Panel title="INPUT TERMINAL" rightTitle={inputLocked ? "LOCKED" : "OPEN"}>
               <div className="space-y-3">
@@ -509,7 +584,7 @@ export default function RSRScribe() {
                   onChange={(e) => setInput(e.target.value)}
                   disabled={inputLocked}
                   placeholder="Awaiting signal input"
-                  className="min-h-[150px] w-full resize-none border bg-black/40 px-4 py-4 text-sm text-white outline-none placeholder:text-white/25 disabled:opacity-80"
+                  className="min-h-[130px] w-full resize-none border bg-black/40 px-4 py-4 text-sm text-white outline-none placeholder:text-white/25 disabled:opacity-80"
                   style={{ borderColor: BORDER, boxShadow: inputLocked ? "0 0 16px rgba(0,255,136,0.08) inset" : "none" }}
                 />
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_1fr_auto_auto]">
@@ -529,14 +604,15 @@ export default function RSRScribe() {
                   <button onClick={processSignal} disabled={!input.trim() || inputLocked} className="border px-5 py-3 text-xs uppercase tracking-[0.22em] transition disabled:cursor-not-allowed disabled:opacity-40" style={{ borderColor: ACCENT, color: ACCENT, background: "rgba(0,255,136,0.08)" }}>
                     {inputLocked ? "PROCESSING" : "PROCESS SIGNAL"}
                   </button>
-                  <button onClick={runAutoScan} disabled={inputLocked} className="border px-5 py-3 text-xs uppercase tracking-[0.22em] transition disabled:cursor-not-allowed disabled:opacity-40" style={{ borderColor: ACCENT, color: ACCENT, background: "rgba(0,255,136,0.08)" }}>
-                    AUTO SCAN
+                  <button onClick={runAutoScan} disabled={inputLocked} className="border px-5 py-3 text-xs uppercase tracking-[0.22em] transition disabled:cursor-not-allowed disabled:opacity-50" style={{ borderColor: inputLocked ? "rgba(0,255,136,0.4)" : ACCENT, color: inputLocked ? "rgba(0,255,136,0.5)" : ACCENT, background: inputLocked ? "rgba(0,255,136,0.04)" : "rgba(0,255,136,0.1)" }}>
+                    {inputLocked ? "SCANNING..." : "AUTO SCAN"}
                   </button>
                 </div>
               </div>
             </Panel>
 
-            <Panel title="PIPELINE VISUALIZATION" rightTitle={activeStage === "IDLE" ? "STANDBY" : activeStage}>
+            {/* INTELLIGENCE FLOW (was PIPELINE VISUALIZATION) */}
+            <Panel title="INTELLIGENCE FLOW" rightTitle={inputLocked ? "ACTIVE" : activeStage === "IDLE" ? "STANDBY" : activeStage === "COMPLETE" ? "COMPLETE" : activeStage}>
               <div className="overflow-hidden">
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-6">
                   {PIPELINE.map((stage, index) => {
@@ -548,14 +624,29 @@ export default function RSRScribe() {
                       <div key={stage} className="relative flex flex-col items-center">
                         {index < PIPELINE.length - 1 ? (
                           <div className="absolute left-[56%] top-[24px] hidden h-[2px] w-[92%] md:block" style={{ background: "rgba(255,255,255,0.08)" }}>
-                            <div className="h-full" style={{ width: done || active ? "100%" : "0%", background: failed ? "linear-gradient(90deg, transparent, #ff6868, transparent)" : `linear-gradient(90deg, transparent, ${ACCENT}, transparent)`, boxShadow: active ? `0 0 14px ${ACCENT}` : done ? `0 0 10px ${ACCENT}` : failed ? "0 0 10px #ff6868" : "none", transition: "width 450ms ease, box-shadow 300ms ease", backgroundSize: "180% 100%", animation: active ? "flowline 1.1s linear infinite" : undefined }} />
+                            <div className="h-full" style={{
+                              width: done ? "100%" : "0%",
+                              background: failed ? `linear-gradient(90deg, transparent, ${RED}, transparent)` : `linear-gradient(90deg, transparent, ${ACCENT}, transparent)`,
+                              boxShadow: done ? `0 0 10px ${ACCENT}` : failed ? `0 0 10px ${RED}` : "none",
+                              transition: "width 500ms ease",
+                            }} />
                           </div>
                         ) : null}
-                        <div className="relative z-10 flex h-[48px] w-[48px] items-center justify-center border text-[10px] tracking-[0.16em]" style={{ borderColor: failed ? "#ff6868" : active || done ? ACCENT : BORDER, background: active ? "rgba(0,255,136,0.12)" : failed ? "rgba(255,104,104,0.1)" : "rgba(0,0,0,0.28)", color: failed ? "#ff6868" : active || done ? ACCENT : "rgba(255,255,255,0.65)", boxShadow: active ? `0 0 16px rgba(0,255,136,0.45), inset 0 0 16px rgba(0,255,136,0.08)` : done ? `0 0 10px rgba(0,255,136,0.18)` : failed ? `0 0 10px rgba(255,104,104,0.22)` : "none", transition: "all 220ms ease" }}>
+                        <div
+                          className="relative z-10 flex h-[48px] w-[48px] items-center justify-center border text-[10px] tracking-[0.16em]"
+                          style={{
+                            borderColor: failed ? RED : active || done ? ACCENT : BORDER,
+                            background: active ? "rgba(0,255,136,0.12)" : failed ? "rgba(255,104,104,0.1)" : "rgba(0,0,0,0.28)",
+                            color: failed ? RED : active || done ? ACCENT : "rgba(255,255,255,0.65)",
+                            boxShadow: active ? `0 0 18px rgba(0,255,136,0.5), inset 0 0 18px rgba(0,255,136,0.1)` : done ? `0 0 10px rgba(0,255,136,0.2)` : failed ? `0 0 10px rgba(255,104,104,0.25)` : "none",
+                            animation: active ? "nodePulse 1.1s ease-in-out infinite" : "none",
+                            transition: "all 250ms ease",
+                          }}
+                        >
                           {index + 1}
                         </div>
                         <div className="mt-3 text-center text-[11px] uppercase tracking-[0.22em] text-white/75">{stage}</div>
-                        <div className="mt-2 text-center text-[10px] text-white/45">{statusLabel}</div>
+                        <div className="mt-1 text-center text-[10px]" style={{ color: active ? ACCENT : failed ? RED : done ? "rgba(0,255,136,0.65)" : "rgba(255,255,255,0.35)" }}>{statusLabel}</div>
                       </div>
                     );
                   })}
@@ -563,7 +654,7 @@ export default function RSRScribe() {
               </div>
             </Panel>
 
-            <Panel title="SAGE ANALYSIS" rightTitle={sage ? "ACTIVE" : "PENDING"}>
+            <Panel title="SAGE ANALYSIS" rightTitle={sage ? "ACTIVE" : inputLocked ? "PROCESSING" : "PENDING"}>
               {sage ? (
                 <div className="space-y-3">
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-3 text-xs">
@@ -589,41 +680,83 @@ export default function RSRScribe() {
                     ))}
                   </div>
                 </div>
-              ) : <div className="text-sm text-white/50">Awaiting signal input</div>}
+              ) : (
+                <div className="text-sm text-white/50">{inputLocked ? "Pipeline running..." : "Awaiting signal input"}</div>
+              )}
             </Panel>
           </div>
 
+          {/* RIGHT COLUMN */}
           <div className="space-y-4">
-            <Panel title="OUTPUT THREAD" rightTitle={axion ? `${visibleThreadCount}/${axion.length}` : "PENDING"}>
-              <div className="space-y-3 text-sm">
-                {axion?.length ? axion.slice(0, visibleThreadCount).map((line, index) => (
-                  <div key={`${line}-${index}`} className="border px-4 py-3 text-white/90" style={{ borderColor: BORDER, background: "rgba(0,0,0,0.24)", animation: "fadeLine 260ms ease" }}>{line}</div>
-                )) : <div className="text-white/50">Awaiting signal input</div>}
-              </div>
-            </Panel>
 
-            <Panel title="TOP CANDIDATES" rightTitle={candidates.length ? `${candidates.length}` : "NONE"}>
-              <div className="space-y-2 text-xs max-h-[240px] overflow-auto pr-1">
+            {/* X DEPLOYMENT DRAFT (was OUTPUT THREAD) */}
+            <div className="rounded-none border backdrop-blur-md" style={{ background: GLASS, borderColor: BORDER, boxShadow: "0 0 24px rgba(0,255,136,0.06) inset" }}>
+              <div className="flex items-center justify-between border-b px-4 py-3 text-[11px] uppercase tracking-[0.28em]" style={{ borderColor: BORDER }}>
+                <span className="text-white/90">X DEPLOYMENT DRAFT</span>
+                <div className="flex items-center gap-3">
+                  {axion && axion.length > 0 && (
+                    <button onClick={copyAll} className="flex items-center gap-1.5 border px-2.5 py-1.5 text-[10px] uppercase tracking-[0.18em] transition-all" style={{ borderColor: copiedAll ? ACCENT : "rgba(0,255,136,0.3)", color: copiedAll ? ACCENT : "rgba(255,255,255,0.55)", background: copiedAll ? "rgba(0,255,136,0.08)" : "transparent" }}>
+                      {copiedAll ? <CheckIcon /> : <CopyIcon />}
+                      {copiedAll ? "COPIED" : "COPY ALL"}
+                    </button>
+                  )}
+                  <span style={{ color: ACCENT }}>{axion ? `${visibleThreadCount}/${axion.length} POSTS` : "PENDING"}</span>
+                </div>
+              </div>
+              <div className="p-4">
+                <div className="space-y-3">
+                  {axion?.length ? axion.slice(0, visibleThreadCount).map((line, index) => (
+                    <div
+                      key={`${line}-${index}`}
+                      className="group relative border px-4 py-3"
+                      style={{ borderColor: BORDER, background: "rgba(0,0,0,0.28)", animation: "fadeLine 260ms ease" }}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1">
+                          <div className="mb-2 text-[10px] uppercase tracking-[0.2em]" style={{ color: "rgba(0,255,136,0.55)" }}>POST {index + 1}</div>
+                          <div className="text-sm leading-[1.65] text-white/88">{line}</div>
+                          <div className="mt-2 text-[10px] text-white/35">{line.length} CHARS</div>
+                        </div>
+                        <button
+                          onClick={() => copyLine(line, index)}
+                          className="mt-0.5 flex-shrink-0 border p-2 transition-all"
+                          style={{ borderColor: copiedIndex === index ? ACCENT : "rgba(0,255,136,0.2)", color: copiedIndex === index ? ACCENT : "rgba(255,255,255,0.35)", background: copiedIndex === index ? "rgba(0,255,136,0.08)" : "transparent" }}
+                        >
+                          {copiedIndex === index ? <CheckIcon /> : <CopyIcon />}
+                        </button>
+                      </div>
+                    </div>
+                  )) : (
+                    <div className="border px-4 py-5 text-sm text-white/40" style={{ borderColor: "rgba(0,255,136,0.1)", background: "rgba(0,0,0,0.2)" }}>
+                      {inputLocked ? "Composing deployment thread..." : "Awaiting signal input"}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* SIGNAL CANDIDATES (was TOP CANDIDATES) */}
+            <Panel title="SIGNAL CANDIDATES" rightTitle={candidates.length ? `${candidates.length}` : "NONE"}>
+              <div className="space-y-2 text-xs max-h-[220px] overflow-auto pr-1">
                 {candidates.length ? candidates.map((item, index) => {
                   const selected = selectedCandidateUrl === item.url;
                   return (
-                    <button key={`${item.url}-${index}`} onClick={() => promoteCandidate(item)} className="w-full border px-3 py-3 text-left" style={{ borderColor: selected ? ACCENT : BORDER, background: selected ? "rgba(0,255,136,0.09)" : "rgba(0,0,0,0.18)" }}>
+                    <button key={`${item.url}-${index}`} onClick={() => promoteCandidate(item)} disabled={inputLocked} className="w-full border px-3 py-2.5 text-left transition-all disabled:opacity-50" style={{ borderColor: selected ? ACCENT : BORDER, background: selected ? "rgba(0,255,136,0.09)" : "rgba(0,0,0,0.18)" }}>
                       <div className="flex items-center justify-between gap-3">
                         <span style={{ color: ACCENT }}>{item.feedName}</span>
-                        <span className="text-white/50">{item.score}</span>
+                        <span className="text-white/45">{relativeTime(item.publishedAt)}</span>
                       </div>
-                      <div className="mt-2 text-white/85 leading-5">{item.headline}</div>
-                      <div className="mt-2 flex items-center justify-between text-white/45">
-                        <span>{item.sourceHost}</span>
-                        <span>{relativeTime(item.publishedAt)}</span>
-                      </div>
+                      <div className="mt-1.5 text-white/85 leading-5">{item.headline}</div>
                     </button>
                   );
-                }) : <div className="text-white/50">No candidates loaded</div>}
+                }) : (
+                  <div className="text-white/50">{inputLocked ? "Loading candidates..." : "No candidates loaded"}</div>
+                )}
               </div>
             </Panel>
 
-            <Panel title="X INTEGRATION" rightTitle={xStatus}>
+            {/* X DEPLOYMENT CONTROL (was X INTEGRATION) */}
+            <Panel title="X DEPLOYMENT CONTROL" rightTitle={xStatus}>
               <div className="grid grid-cols-1 gap-3 text-xs md:grid-cols-2">
                 {[
                   ["API KEY", "apiKey"],
@@ -633,34 +766,39 @@ export default function RSRScribe() {
                 ].map(([label, key]) => (
                   <div key={key} className="space-y-2">
                     <div className="text-[10px] uppercase tracking-[0.22em] text-white/60">{label}</div>
-                    <input type="password" value={xCredentials[key as keyof XCredentials]} onChange={(e) => setXCredentials((prev) => ({ ...prev, [key]: e.target.value }))} className="w-full border bg-black/40 px-3 py-3 text-xs text-white outline-none" style={{ borderColor: BORDER }} />
+                    <input type="password" value={xCredentials[key as keyof XCredentials]} onChange={(e) => setXCredentials((prev) => ({ ...prev, [key]: e.target.value }))} className="w-full border bg-black/40 px-3 py-2.5 text-xs text-white outline-none" style={{ borderColor: BORDER }} />
                   </div>
                 ))}
               </div>
-              <div className="mt-3 flex flex-wrap gap-3">
-                <button onClick={saveCredentials} className="border px-4 py-3 text-[11px] uppercase tracking-[0.22em]" style={{ borderColor: ACCENT, color: ACCENT, background: "rgba(0,255,136,0.08)" }}>SAVE CREDENTIALS</button>
-                <button onClick={testConnection} className="border px-4 py-3 text-[11px] uppercase tracking-[0.22em]" style={{ borderColor: BORDER, color: "white", background: "rgba(255,255,255,0.03)" }}>TEST CONNECTION</button>
-                <button onClick={clearCredentials} className="border px-4 py-3 text-[11px] uppercase tracking-[0.22em]" style={{ borderColor: BORDER, color: "white", background: "rgba(255,255,255,0.03)" }}>CLEAR CREDENTIALS</button>
-                <button onClick={() => postToX(false)} disabled={!postToXEnabled} className="border px-4 py-3 text-[11px] uppercase tracking-[0.22em] disabled:opacity-40" style={{ borderColor: postToXEnabled ? ACCENT : BORDER, color: postToXEnabled ? ACCENT : "white", background: postToXEnabled ? "rgba(0,255,136,0.08)" : "rgba(255,255,255,0.03)" }}>POST TO X</button>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button onClick={saveCredentials} className="border px-4 py-2.5 text-[11px] uppercase tracking-[0.22em]" style={{ borderColor: ACCENT, color: ACCENT, background: "rgba(0,255,136,0.08)" }}>SAVE</button>
+                <button onClick={testConnection} className="border px-4 py-2.5 text-[11px] uppercase tracking-[0.22em]" style={{ borderColor: BORDER, color: "white", background: "rgba(255,255,255,0.03)" }}>TEST CONNECTION</button>
+                <button onClick={clearCredentials} className="border px-4 py-2.5 text-[11px] uppercase tracking-[0.22em]" style={{ borderColor: BORDER, color: "white", background: "rgba(255,255,255,0.03)" }}>CLEAR</button>
+                <button onClick={() => postToX(false)} disabled={!postToXEnabled} className="border px-4 py-2.5 text-[11px] uppercase tracking-[0.22em] disabled:opacity-40 disabled:cursor-not-allowed" style={{ borderColor: postToXEnabled ? ACCENT : BORDER, color: postToXEnabled ? ACCENT : "white", background: postToXEnabled ? "rgba(0,255,136,0.1)" : "rgba(255,255,255,0.03)" }}>
+                  {posting ? "POSTING..." : "POST TO X"}
+                </button>
               </div>
-              <div className="mt-3 text-xs text-white/65">{xMessage || "X credentials missing"}</div>
+              <div className="mt-2.5 text-xs text-white/65">{xMessage || "X credentials missing"}</div>
             </Panel>
 
             <Panel title="SCRIBE DECISION" rightTitle={ready ? "READY" : "BLOCKED"}>
               <div className="border px-4 py-4" style={{ borderColor: BORDER, background: "rgba(0,0,0,0.18)" }}>
                 <div className="text-[11px] uppercase tracking-[0.22em] text-white/55">Terminal Judgement</div>
-                <div className="mt-2 text-3xl font-semibold" style={{ color: ready ? ACCENT : "#ff6868" }}>{ready ? "READY" : "BLOCKED"}</div>
-                <div className="mt-3 text-xs leading-6 text-white/70">{ready ? "AUTO SCAN collected a usable lead, ingested readable content, and produced deployment output." : blockedReason || "One or more deployment conditions remain unresolved."}</div>
+                <div className="mt-2 text-3xl font-semibold" style={{ color: ready ? ACCENT : RED }}>{ready ? "READY" : "BLOCKED"}</div>
+                <div className="mt-3 text-xs leading-6 text-white/70">
+                  {ready ? "AUTO SCAN collected a usable lead, ingested readable content, and produced a deployment-ready thread." : blockedReason || "One or more deployment conditions remain unresolved."}
+                </div>
               </div>
             </Panel>
           </div>
         </div>
 
+        {/* Live System Log */}
         <div className="mt-4">
           <Panel title="LIVE SYSTEM LOG" rightTitle={`${logs.length} ENTRIES`}>
-            <div ref={logRef} className="h-[220px] overflow-y-auto border bg-black/35 p-3 text-xs leading-6" style={{ borderColor: BORDER }}>
+            <div ref={logRef} className="h-[200px] overflow-y-auto border bg-black/35 p-3 text-xs leading-6" style={{ borderColor: BORDER }}>
               {logs.map((line, index) => (
-                <div key={`${line}-${index}`} className="text-white/78">{line}</div>
+                <div key={`${line}-${index}`} className="text-white/75">{line}</div>
               ))}
             </div>
           </Panel>
@@ -668,12 +806,12 @@ export default function RSRScribe() {
       </div>
 
       <style>{`
-        @keyframes flowline {
-          0% { background-position: 200% 0; }
-          100% { background-position: -200% 0; }
+        @keyframes nodePulse {
+          0%, 100% { box-shadow: 0 0 18px rgba(0,255,136,0.5), inset 0 0 18px rgba(0,255,136,0.1); }
+          50%       { box-shadow: 0 0 28px rgba(0,255,136,0.75), inset 0 0 24px rgba(0,255,136,0.18); }
         }
         @keyframes fadeLine {
-          0% { opacity: 0; transform: translateY(8px); }
+          0%   { opacity: 0; transform: translateY(6px); }
           100% { opacity: 1; transform: translateY(0); }
         }
       `}</style>

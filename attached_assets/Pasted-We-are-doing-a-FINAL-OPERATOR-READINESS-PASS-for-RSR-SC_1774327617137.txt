@@ -1,0 +1,185 @@
+We are doing a FINAL OPERATOR-READINESS PASS for RSR SCRIBE.
+
+Do not redesign from scratch.
+Do not remove the current terminal aesthetic.
+Do not add mock data.
+Keep the current green tactical identity.
+
+MISSION:
+Fix stale scan state, improve scan speed, restore processing animation, upgrade naming, and convert the output area into a true X-ready deployment composer.
+
+━━━━━━━━━━━━━━━━━━━
+PHASE 1 — HARD RESET ON EVERY AUTO SCAN
+━━━━━━━━━━━━━━━━━━━
+
+Current problem:
+Old source/candidate/output state is lingering after a new AUTO SCAN.
+The system appears to keep prior Macron / previous story context alive.
+
+Fix this strictly.
+
+When AUTO SCAN is clicked:
+- clear previous lead source
+- clear previous Top Candidates
+- clear previous SENTRIX
+- clear previous SAGE
+- clear previous AXION/X output
+- clear previous BLACK DOG result
+- clear previous READY state
+- set system to SCANNING state immediately
+
+Only after new live data is returned should the panels repopulate.
+
+No stale carry-over.
+No previous article residue.
+
+━━━━━━━━━━━━━━━━━━━
+PHASE 2 — SPEED / LATENCY PASS
+━━━━━━━━━━━━━━━━━━━
+
+Current problem:
+Response time is too slow.
+
+Improve speed without faking anything:
+
+- fetch feeds in parallel
+- cap feeds per scope to the strongest 3–4
+- stop ingest attempts once first clean readable candidate succeeds
+- trim article content earlier before AI analysis
+- reduce unnecessary repeated parsing
+- add short in-memory cache for feed pulls (example: 60–90 seconds)
+- keep AI prompt concise and structured
+- avoid oversized output generation
+
+Goal:
+AUTO SCAN should feel responsive and operational, not sluggish.
+
+Add system log timing:
+- feed fetch duration
+- candidate ranking duration
+- ingest duration
+- AI analysis duration
+- total scan duration
+
+━━━━━━━━━━━━━━━━━━━
+PHASE 3 — RESTORE PIPELINE ANIMATION
+━━━━━━━━━━━━━━━━━━━
+
+Bring back visual stage progression.
+
+The pipeline row should animate stage-by-stage during scan:
+
+1 INPUT
+2 SENTRIX
+3 SAGE
+4 AXION
+5 BLACK DOG
+6 SCRIBE
+
+Each stage should visibly change through:
+- STANDBY
+- PROCESSING
+- COMPLETE
+- FAILED
+
+Use subtle light-up / pulse / sweep behavior.
+Do not overdo it.
+It should feel like a live intelligence system, not arcade UI.
+
+━━━━━━━━━━━━━━━━━━━
+PHASE 4 — RENAME WEAK LABELS
+━━━━━━━━━━━━━━━━━━━
+
+Replace weak/generic labels with stronger command language.
+
+Use better names like these:
+
+- "PIPELINE VISUALIZATION" → "INTELLIGENCE FLOW"
+- "OUTPUT THREAD" → "X DEPLOYMENT DRAFT"
+- "TOP CANDIDATES" → "SIGNAL CANDIDATES"
+- "INPUT TERMINAL" stays
+- "SCRIBE DECISION" can stay if strong
+- "STATUS" stays
+- "SAGE ANALYSIS" stays unless better integrated
+- "X INTEGRATION" stays or becomes "X DEPLOYMENT CONTROL"
+
+Do not use cheesy names.
+Keep it sharp, tactical, professional.
+
+━━━━━━━━━━━━━━━━━━━
+PHASE 5 — REAL X POST WORKSPACE
+━━━━━━━━━━━━━━━━━━━
+
+Current problem:
+There is no clearly defined space for the final X posts.
+
+Create a dedicated right-side or upper-right draft area called:
+
+X DEPLOYMENT DRAFT
+
+This area must contain:
+- final post/thread lines only
+- clearly editable lines
+- cleaner spacing for readability
+- numbering for thread order
+- copy/post actions tied to actual deploy flow
+
+It must feel like:
+“This is the exact thing I am about to post.”
+
+Do not bury deployment text inside general analysis boxes.
+
+━━━━━━━━━━━━━━━━━━━
+PHASE 6 — X OUTPUT QUALITY RULES
+━━━━━━━━━━━━━━━━━━━
+
+The X draft output must be cleaner and more postable.
+
+Rules:
+- tighter lines
+- less repetitive sentence structure
+- no clunky filler
+- no generic over-analysis unless justified
+- each line should read like a deployable X post, not a raw analysis paragraph
+- maintain RSR intelligence tone
+- preserve distinctions between confirmed / likely / constrained if present
+- avoid excessive verbosity
+
+Target:
+A clean 3–5 post thread that actually feels ready to publish.
+
+━━━━━━━━━━━━━━━━━━━
+PHASE 7 — LIVE MARKER
+━━━━━━━━━━━━━━━━━━━
+
+Update header marker to:
+
+AUTO SCAN PREVIEW // BUILD LIVE-4
+
+This must be visibly present in the running preview.
+
+━━━━━━━━━━━━━━━━━━━
+FINAL RULES
+━━━━━━━━━━━━━━━━━━━
+
+- no mock/demo data
+- no stale previous-source contamination
+- no fake speed
+- no fake readiness
+- preserve current app identity
+- make this feel like an operator system reaching v1
+
+━━━━━━━━━━━━━━━━━━━
+RESPONSE FORMAT
+━━━━━━━━━━━━━━━━━━━
+
+After implementation, report ONLY:
+
+1. exact files modified
+2. whether stale state was fully cleared on every scan
+3. what speed improvements were added
+4. whether pipeline animation was restored
+5. exact label changes made
+6. whether X DEPLOYMENT DRAFT now exists
+7. whether output is now cleaner and more postable
+8. confirm visible header marker says BUILD LIVE-4

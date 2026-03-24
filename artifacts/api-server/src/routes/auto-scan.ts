@@ -12,26 +12,25 @@ router.post("/auto-scan", async (req, res) => {
     leadUrl?: string;
   };
 
+  const t0 = Date.now();
   const logs: string[] = [];
   logs.push(`[AUTO SCAN] started`);
   logs.push(`[AUTO SCAN] scope=${scope} window=${windowCode}`);
 
   try {
+    const tFeed = Date.now();
     const raw = await fetchCandidates(scope, windowCode, logs);
 
     if (raw.length === 0) {
       logs.push("[AUTO SCAN] no candidates found in any feed");
-      res.json({
-        success: false,
-        reason: "No feed items found within the selected time window",
-        candidates: [],
-        logs,
-      });
+      res.json({ success: false, reason: "No feed items found within the selected time window", candidates: [], logs });
       return;
     }
 
+    const tRank = Date.now();
     const ranked = rankCandidates(raw, scope);
     logs.push(`[RANK] ${ranked.length} candidates scored and ranked`);
+    logs.push(`[TIMER] ranking: ${Date.now() - tRank}ms`);
 
     const candidates = (ranked as Array<typeof ranked[0] & { score: number }>).map((c) => ({
       headline: c.headline,
@@ -46,24 +45,20 @@ router.post("/auto-scan", async (req, res) => {
 
     const targetUrl = leadUrl || candidates[0]?.url;
     if (!targetUrl) {
-      res.json({
-        success: false,
-        reason: "No usable candidate URL found",
-        candidates,
-        logs,
-      });
+      res.json({ success: false, reason: "No usable candidate URL found", candidates, logs });
       return;
     }
 
     const targetCandidate = candidates.find((c) => c.url === targetUrl) || candidates[0];
     logs.push(`[INGEST] lead candidate selected: ${targetCandidate.headline.slice(0, 80)}`);
 
+    const tIngest = Date.now();
     let ingest = await ingestUrl(targetUrl, targetCandidate.headline, logs);
 
     if (!ingest.extracted) {
       for (const alt of candidates.slice(1, 4)) {
         if (alt.url === targetUrl) continue;
-        logs.push(`[INGEST] retrying with next candidate: ${alt.headline.slice(0, 60)}`);
+        logs.push(`[INGEST] retrying with: ${alt.headline.slice(0, 60)}`);
         ingest = await ingestUrl(alt.url, alt.headline, logs);
         if (ingest.extracted) {
           targetCandidate.headline = alt.headline;
@@ -75,6 +70,8 @@ router.post("/auto-scan", async (req, res) => {
         }
       }
     }
+
+    logs.push(`[TIMER] ingest: ${Date.now() - tIngest}ms`);
 
     if (!ingest.extracted) {
       logs.push("[INGEST] all candidates failed extraction");
@@ -97,13 +94,10 @@ router.post("/auto-scan", async (req, res) => {
       return;
     }
 
-    const pipeline = await runPipeline(
-      ingest.headline,
-      ingest.body,
-      ingest.sourceHost,
-      scope,
-      logs
-    );
+    const tPipeline = Date.now();
+    const pipeline = await runPipeline(ingest.headline, ingest.body, ingest.sourceHost, scope, logs);
+    logs.push(`[TIMER] AI pipeline: ${Date.now() - tPipeline}ms`);
+    logs.push(`[TIMER] total scan: ${Date.now() - t0}ms`);
 
     const ready =
       pipeline.sentrix.length >= 3 &&
@@ -156,13 +150,9 @@ router.post("/auto-scan", async (req, res) => {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     logs.push(`[AUTO SCAN] fatal error — ${message}`);
+    logs.push(`[TIMER] failed after: ${Date.now() - t0}ms`);
     req.log.error({ err }, "auto-scan error");
-    res.json({
-      success: false,
-      reason: `AUTO SCAN failed: ${message}`,
-      candidates: [],
-      logs,
-    });
+    res.json({ success: false, reason: `AUTO SCAN failed: ${message}`, candidates: [], logs });
   }
 });
 
