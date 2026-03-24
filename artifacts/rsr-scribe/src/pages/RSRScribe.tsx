@@ -5,11 +5,12 @@ const BG     = "#07090d";
 const GLASS  = "rgba(11,15,21,0.94)";
 const GLASS2 = "rgba(5,8,13,0.88)";
 const BORDER = "rgba(255,255,255,0.07)";
-const BORDA  = "rgba(0,255,136,0.15)";
+const BORDA  = "rgba(0,255,136,0.14)";
 const ACCENT = "#00ff88";
 const RED    = "#e05555";
 const YELLOW = "#e8a73a";
 const MONO   = "ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono',monospace";
+const MAX_CHARS = 280;
 
 const RISK_COLOR: Record<string, string> = {
   LOW: "#4ade80", ELEVATED: YELLOW, HIGH: "#f97316", CRITICAL: RED, PENDING: "rgba(255,255,255,0.28)",
@@ -20,7 +21,6 @@ const CONF_COLOR: Record<string, string> = {
 
 const PIPELINE = ["INPUT", "SENTRIX", "SAGE", "AXION", "BLACK DOG", "SCRIBE"] as const;
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-const MAX_CHARS = 280;
 
 // ── TYPES ──────────────────────────────────────────────────────────────────────
 type Classification = "CONFIRMED" | "LIKELY" | "CONTESTED" | "UNKNOWN";
@@ -34,128 +34,111 @@ type XStatus        = "X not configured" | "X configured" | "X test failed" | "X
 type Judgement      = "BLOCKED" | "PARTIAL" | "READY" | "POSTED";
 
 type Signal       = { text: string; classification: Classification; label: Classification; confidence: number; kind: string };
-type IntelPost    = { domain: string; location: string; signal: string; detail: string; source: string; confidence: Classification };
+type IntelPost    = { domain: string; location: string; signal: string; detail: string; source: string; confidence: Classification; confidenceReason?: string };
 type SageOutput   = { WHAT: string; WHY: string; MECHANISM: string; CONSTRAINTS: string; CHANGING: string; LOCATION: string; DOMAIN: string };
 type RiskOutput   = { level: RiskLevel; reason: string; score: number };
-type Candidate    = { headline: string; url: string; summary: string; sourceHost: string; publishedAt: string; scope: Scope; feedName: string; score: number };
+type Candidate    = { headline: string; url: string; summary: string; sourceHost: string; publishedAt: string; scope: Scope; feedName: string; score: number; clusterSize?: number; clusterUrls?: string[]; clusterFeeds?: string[] };
 type XCreds       = { apiKey: string; apiKeySecret: string; accessToken: string; accessTokenSecret: string };
 type CleanedSource = { readableText: string; headline: string; body: string; claims: string[]; sourceHost: string; onlyUrlInput: boolean; extracted: boolean; issue?: string };
+type SourceRecord  = { headline: string; content: string; timestamp: string; sourceType: string; sourceHost: string; sourceUrl: string; summary: string; feedName: string; clusterSize?: number; clusterFeeds?: string[] };
 type AutoScanResponse = {
   success: boolean; mode?: string; scope?: Scope; window?: WindowCode; leadCandidate?: Candidate;
-  sourceRecord?: { headline: string; content: string; timestamp: string; sourceType: string; sourceHost: string; sourceUrl: string; summary: string; feedName: string };
-  candidates?: Candidate[]; cleanedSource?: CleanedSource; sentrix?: Signal[]; sage?: SageOutput;
-  axion?: IntelPost[]; blackDog?: RiskOutput; escalationScore?: number;
-  ready?: boolean; blockedReason?: string; reason?: string; message?: string; logs?: string[];
+  sourceRecord?: SourceRecord; candidates?: Candidate[]; cleanedSource?: CleanedSource;
+  sentrix?: Signal[]; sage?: SageOutput; axion?: IntelPost[]; blackDog?: RiskOutput;
+  escalationScore?: number; ready?: boolean; blockedReason?: string; reason?: string; message?: string; logs?: string[];
 };
 
 const OUTPUT_MODES: { id: OutputMode; short: string; desc: string }[] = [
   { id: "THREAD",         short: "THREAD",   desc: "4–6 posts · multi-domain thread" },
   { id: "SINGLE_SIGNAL",  short: "SINGLE",   desc: "1 post · highest-impact signal" },
   { id: "RAPID_FIRE",     short: "RAPID",    desc: "3–5 posts · ultra-compressed" },
-  { id: "LONGFORM_INTEL", short: "LONGFORM", desc: "6–8 posts · full depth analysis" },
+  { id: "LONGFORM_INTEL", short: "LONGFORM", desc: "6–8 posts · full domain coverage" },
   { id: "BREAKING_ALERT", short: "BREAKING", desc: "1–3 posts · breaking alert format" },
 ];
 const MIN_AXION: Record<OutputMode, number>   = { THREAD:3, SINGLE_SIGNAL:1, RAPID_FIRE:2, LONGFORM_INTEL:3, BREAKING_ALERT:1 };
 const MIN_SENTRIX: Record<OutputMode, number> = { THREAD:3, SINGLE_SIGNAL:1, RAPID_FIRE:2, LONGFORM_INTEL:3, BREAKING_ALERT:1 };
 
-// ── AUTO-COMPRESSION ENGINE ────────────────────────────────────────────────────
+// ── AUTO-COMPRESSION ──────────────────────────────────────────────────────────
 const COMPRESS_RULES: [RegExp, string][] = [
-  [/\bindicates?\s+that\b/gi,            "signals"],
-  [/\bis\s+likely\s+to\b/gi,             "likely to"],
-  [/\bin\s+order\s+to\b/gi,              "to"],
-  [/\baccording\s+to\b/gi,               "per"],
-  [/\bhas\s+been\b/gi,                   "is"],
-  [/\bit\s+is\s+expected\s+that\b/gi,    "expected:"],
-  [/\bsuggests?\s+that\b/gi,             "signals"],
-  [/\bappears?\s+to\b/gi,               "likely"],
-  [/\bdemonstrates?\s+that\b/gi,         "shows"],
+  [/\bindicates?\s+that\b/gi, "signals"],
+  [/\bis\s+likely\s+to\b/gi, "likely to"],
+  [/\bin\s+order\s+to\b/gi, "to"],
+  [/\baccording\s+to\b/gi, "per"],
+  [/\bhas\s+been\b/gi, "is"],
+  [/\bsuggests?\s+that\b/gi, "signals"],
+  [/\bappears?\s+to\b/gi, "likely"],
+  [/\bdemonstrates?\s+that\b/gi, "shows"],
   [/\bit\s+should\s+be\s+noted\s+that\b/gi, ""],
-  [/\bdue\s+to\s+the\s+fact\s+that\b/gi,"because"],
-  [/\bin\s+the\s+event\s+that\b/gi,      "if"],
-  [/\bat\s+this\s+point\s+in\s+time\b/gi,"now"],
-  [/\bwill\s+likely\b/gi,               "likely will"],
+  [/\bdue\s+to\s+the\s+fact\s+that\b/gi, "because"],
+  [/\bin\s+the\s+event\s+that\b/gi, "if"],
+  [/\bat\s+this\s+point\s+in\s+time\b/gi, "now"],
 ];
-
 function applyCompression(s: string): string {
   let r = s;
   for (const [rx, rep] of COMPRESS_RULES) r = r.replace(rx, rep);
   return r.replace(/\s{2,}/g, " ").trim();
 }
-
 function trimToWord(s: string, max: number): string {
   if (s.length <= max) return s;
   const cut = s.slice(0, max);
-  const sp  = cut.lastIndexOf(" ");
+  const sp = cut.lastIndexOf(" ");
   return sp > max * 0.55 ? cut.slice(0, sp) : cut;
 }
-
 function compressPost(p: IntelPost): string {
   const line1 = `${p.domain} / ${p.location}`;
   const line2 = applyCompression(p.signal);
   const line3 = applyCompression(p.detail);
   const line4 = `SRC: ${(p.source || "OSINT").toUpperCase()} ${p.confidence}`;
-
   const full = [line1, line2, line3, line4].join("\n");
   if (full.length <= MAX_CHARS) return full;
-
   const noDetail = [line1, line2, line4].join("\n");
   if (noDetail.length <= MAX_CHARS) return noDetail;
-
   const overhead = line1.length + 1 + line4.length + 1;
-  const available = MAX_CHARS - overhead;
-  return [line1, trimToWord(line2, Math.max(20, available)), line4].join("\n");
+  return [line1, trimToWord(line2, Math.max(20, MAX_CHARS - overhead)), line4].join("\n");
+}
+
+function deriveConfidenceReason(post: IntelPost, clusterSize: number): string {
+  if (post.confidenceReason) return post.confidenceReason;
+  const multi = clusterSize > 1;
+  switch (post.confidence) {
+    case "CONFIRMED": return multi ? "Multi-source cluster: independent feeds corroborate same operational event." : "Direct sourcing from established outlet aligns with verifiable fact pattern.";
+    case "LIKELY": return "Single-source report consistent with known operational pattern; secondary confirmation absent.";
+    case "CONTESTED": return "Conflicting claims or indicators present; no independent arbitration available.";
+    case "UNKNOWN": return "Insufficient source material for classification; signal extracted but unverified.";
+    default: return "Confidence classification pending evaluation.";
+  }
 }
 
 // ── ICONS ──────────────────────────────────────────────────────────────────────
-const ShieldIcon = () => (
-  <svg width="10" height="11" viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink:0 }}>
-    <path d="M12 1L3 5v6c0 5.25 3.75 10.15 9 11.25C17.25 21.15 21 16.25 21 11V5L12 1z" opacity="0.85"/>
-  </svg>
-);
-const CopyIcon = () => (
-  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="9" y="9" width="13" height="13" rx="1"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-  </svg>
-);
-const CheckIcon = () => (
-  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="20 6 9 17 4 12"/>
-  </svg>
-);
-const EditIcon = () => (
-  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="m18.5 2.5 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-  </svg>
-);
+const ShieldIcon = () => <svg width="9" height="10" viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink:0 }}><path d="M12 1L3 5v6c0 5.25 3.75 10.15 9 11.25C17.25 21.15 21 16.25 21 11V5L12 1z" opacity="0.85"/></svg>;
+const CopyIcon   = () => <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="1"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>;
+const CheckIcon  = () => <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>;
+const EditIcon   = () => <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="m18.5 2.5 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
 
+// ── PRIMITIVES ─────────────────────────────────────────────────────────────────
 function Dot({ color }: { color: string }) {
   return <span style={{ display:"inline-block", width:6, height:6, borderRadius:"50%", background:color, boxShadow:`0 0 4px ${color}`, flexShrink:0 }} />;
 }
-
 function GridBg() {
-  return (
-    <div aria-hidden style={{ pointerEvents:"none", position:"absolute", inset:0,
-      backgroundImage:"linear-gradient(rgba(0,255,136,0.018) 1px,transparent 1px),linear-gradient(90deg,rgba(0,255,136,0.018) 1px,transparent 1px)",
-      backgroundSize:"32px 32px", maskImage:"radial-gradient(ellipse 80% 60% at 50% 30%,black 30%,transparent 100%)" }} />
-  );
+  return <div aria-hidden style={{ pointerEvents:"none", position:"absolute", inset:0, backgroundImage:"linear-gradient(rgba(0,255,136,0.016) 1px,transparent 1px),linear-gradient(90deg,rgba(0,255,136,0.016) 1px,transparent 1px)", backgroundSize:"32px 32px", maskImage:"radial-gradient(ellipse 80% 55% at 50% 30%,black 30%,transparent 100%)" }} />;
 }
-
-// Panel header utility
-function PanelHdr({ label, right }: { label: string; right?: React.ReactNode }) {
+function PH({ label, right, noBorder }: { label: string; right?: React.ReactNode; noBorder?: boolean }) {
   return (
-    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 13px", borderBottom:`1px solid ${BORDER}`, flexShrink:0 }}>
-      <span style={{ fontSize:9, letterSpacing:"0.28em", textTransform:"uppercase", color:"rgba(255,255,255,0.35)" }}>{label}</span>
+    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"7px 12px", borderBottom: noBorder ? "none" : `1px solid ${BORDER}`, flexShrink:0 }}>
+      <span style={{ fontSize:8, letterSpacing:"0.28em", textTransform:"uppercase", color:"rgba(255,255,255,0.32)" }}>{label}</span>
       {right}
     </div>
   );
 }
-
+function PanelBox({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+  return <div style={{ background:GLASS, border:`1px solid ${BORDER}`, backdropFilter:"blur(16px)", ...style }}>{children}</div>;
+}
 function Btn({ children, onClick, disabled, accent, xs }: { children: React.ReactNode; onClick: ()=>void; disabled?: boolean; accent?: boolean; xs?: boolean }) {
   return (
     <button onClick={onClick} disabled={disabled}
-      style={{ padding: xs ? "3px 8px" : "5px 11px", fontSize:9, letterSpacing:"0.18em", textTransform:"uppercase", fontFamily:MONO,
+      style={{ padding: xs ? "3px 8px" : "5px 11px", fontSize:9, letterSpacing:"0.16em", textTransform:"uppercase", fontFamily:MONO,
         border:`1px solid ${accent && !disabled ? BORDA : "rgba(255,255,255,0.09)"}`,
-        color: accent && !disabled ? ACCENT : disabled ? "rgba(255,255,255,0.20)" : "rgba(255,255,255,0.55)",
+        color: accent && !disabled ? ACCENT : disabled ? "rgba(255,255,255,0.20)" : "rgba(255,255,255,0.50)",
         background: accent && !disabled ? "rgba(0,255,136,0.06)" : "rgba(0,0,0,0.20)",
         cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1 }}>
       {children}
@@ -174,12 +157,12 @@ export default function RSRScribe() {
   const [blackDog,        setBlackDog]        = useState<RiskOutput|null>(null);
   const [escalationScore, setEscalationScore] = useState<number|null>(null);
   const [visibleCount,    setVisibleCount]    = useState(0);
-  const [logs,            setLogs]            = useState<string[]>(["RSR SCRIBE // SYSTEM ONLINE","Awaiting signal input"]);
+  const [logs,            setLogs]            = useState<string[]>(["RSR SCRIBE // SYSTEM ONLINE", "Awaiting signal input"]);
   const [scope,           setScope]           = useState<Scope>("GLOBAL");
   const [windowCode,      setWindowCode]      = useState<WindowCode>("6H");
   const [outputMode,      setOutputMode]      = useState<OutputMode>("THREAD");
   const [candidates,      setCandidates]      = useState<Candidate[]>([]);
-  const [sourceRecord,    setSourceRecord]    = useState<AutoScanResponse["sourceRecord"]|null>(null);
+  const [sourceRecord,    setSourceRecord]    = useState<SourceRecord|null>(null);
   const [blockedReason,   setBlockedReason]   = useState("");
   const [selectedUrl,     setSelectedUrl]     = useState("");
   const [xCreds,          setXCreds]          = useState<XCreds>({ apiKey:"", apiKeySecret:"", accessToken:"", accessTokenSecret:"" });
@@ -200,6 +183,11 @@ export default function RSRScribe() {
   const minSentrix = MIN_SENTRIX[outputMode];
   const goodSigs   = sentrix?.filter((s) => s.text.length >= 35) ?? [];
   const riskColor  = RISK_COLOR[blackDog?.level ?? "PENDING"] ?? "rgba(255,255,255,0.28)";
+
+  const currentClusterSize = useMemo(() => {
+    const c = candidates.find((c) => c.url === selectedUrl);
+    return c?.clusterSize ?? sourceRecord?.clusterSize ?? 1;
+  }, [candidates, selectedUrl, sourceRecord]);
 
   const outputHasUrls = useMemo(() => {
     const txt = [...(sentrix?.map((s)=>s.text)??[]), ...(axion?.flatMap((p)=>[p.signal,p.detail])??[])].join(" ");
@@ -226,16 +214,15 @@ export default function RSRScribe() {
 
   const deployStatus =
     xStatus !== "X connected" ? "X NOT CONNECTED" :
-    posted   ? "X CONNECTED / POSTED"            :
-    posting  ? "X CONNECTED / POSTING"           :
-    ready    ? "X CONNECTED / READY TO DEPLOY"   :
-               "X CONNECTED / CONTENT BLOCKED";
+    posted  ? "X CONNECTED / POSTED"           :
+    posting ? "X CONNECTED / POSTING"          :
+    ready   ? "X CONNECTED / READY TO DEPLOY"  :
+              "X CONNECTED / CONTENT BLOCKED";
 
   const deployStatusColor =
-    deployStatus === "X CONNECTED / READY TO DEPLOY" ? ACCENT :
-    deployStatus === "X CONNECTED / POSTED"          ? ACCENT :
-    deployStatus === "X CONNECTED / POSTING"         ? YELLOW :
-    deployStatus === "X NOT CONNECTED"               ? "rgba(255,255,255,0.28)" : RED;
+    deployStatus.includes("READY") || deployStatus.includes("POSTED") ? ACCENT :
+    deployStatus.includes("POSTING") ? YELLOW :
+    deployStatus === "X NOT CONNECTED" ? "rgba(255,255,255,0.28)" : RED;
 
   const deployBlockReason = (): string => {
     if (!axion || axion.length === 0) return "No draft generated — run AUTO SCAN first";
@@ -250,7 +237,7 @@ export default function RSRScribe() {
 
   const canPost = ready && xStatus === "X connected" && !!axion?.length && !posting && !posted && allPostsValid;
 
-  const getEditedText = (i: number): string => postEdits[i] ?? "";
+  const getEditedText = (i: number) => postEdits[i] ?? "";
 
   useEffect(() => { if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; }, [logs]);
   useEffect(() => { loadXStatus(); }, []);
@@ -263,14 +250,14 @@ export default function RSRScribe() {
     setBlackDog(null); setEscalationScore(null); setVisibleCount(0);
     setCandidates([]); setSourceRecord(null); setBlockedReason(""); setSelectedUrl("");
     setPosted(false); setPostEdits({});
-    setStageStatuses(Object.fromEntries(PIPELINE.map((s) => [s,"STANDBY"])));
+    setStageStatuses(Object.fromEntries(PIPELINE.map((s) => [s, "STANDBY"])));
   };
 
   const finaliseStages = (target: StageName, ok: boolean) => {
     const idx = PIPELINE.indexOf(target as never);
-    setStageStatuses(Object.fromEntries(PIPELINE.map((s,i) =>
+    setStageStatuses(Object.fromEntries(PIPELINE.map((s, i) =>
       [s, i < idx ? "COMPLETE" : i === idx ? (ok ? "COMPLETE" : "FAILED") : "STANDBY"]
-    )) as Record<string,NodeState>);
+    )) as Record<string, NodeState>);
   };
 
   const animatePipeline = (gen: number) => {
@@ -286,14 +273,13 @@ export default function RSRScribe() {
     }
   };
 
-  const revealPosts = async (posts: IntelPost[]|null|undefined) => {
+  const revealPosts = async (posts: IntelPost[] | null | undefined) => {
     setVisibleCount(0);
     if (!posts?.length) return;
-    // Auto-compress and enforce 280 at initialization
-    const edits: Record<number,string> = {};
+    const edits: Record<number, string> = {};
     posts.forEach((p, i) => { edits[i] = compressPost(p); });
     setPostEdits(edits);
-    for (let i = 1; i <= posts.length; i++) { await sleep(200); setVisibleCount(i); }
+    for (let i = 1; i <= posts.length; i++) { await sleep(180); setVisibleCount(i); }
   };
 
   const relTime = (iso?: string) => {
@@ -301,7 +287,7 @@ export default function RSRScribe() {
     const mins = Math.max(1, Math.floor((Date.now() - +new Date(iso)) / 60000));
     if (mins < 60) return `${mins}m ago`;
     const h = Math.floor(mins / 60);
-    return h < 24 ? `${h}h ago` : `${Math.floor(h/24)}d ago`;
+    return h < 24 ? `${h}h ago` : `${Math.floor(h / 24)}d ago`;
   };
 
   // ── DATA ────────────────────────────────────────────────────────────────────
@@ -325,7 +311,7 @@ export default function RSRScribe() {
     await revealPosts(data.axion);
   };
 
-  const runScan = async (extra: Record<string,unknown> = {}) => {
+  const runScan = async (extra: Record<string, unknown> = {}) => {
     if (inputLocked) return;
     resetAll();
     setInputLocked(true);
@@ -333,7 +319,7 @@ export default function RSRScribe() {
     const gen = ++scanGen.current;
     animatePipeline(gen);
     try {
-      const res  = await fetch("/api/auto-scan", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ scope, window: windowCode, outputMode, ...extra }) });
+      const res = await fetch("/api/auto-scan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scope, window: windowCode, outputMode, ...extra }) });
       const data = await res.json() as AutoScanResponse;
       scanGen.current = gen + 1;
       await applyData(data);
@@ -358,7 +344,7 @@ export default function RSRScribe() {
 
   const saveXCreds = async () => {
     try {
-      const d = await (await fetch("/api/x/credentials", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(xCreds) })).json();
+      const d = await (await fetch("/api/x/credentials", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(xCreds) })).json();
       setXStatus(d?.status || "X configured"); setXMessage(d?.message || "");
       if (d?.status === "X connected") { setXVerifiedAt(new Date().toLocaleTimeString()); setXCredsExpanded(false); }
       pushLog(`[X] ${d?.message || "credentials saved"}`);
@@ -367,7 +353,7 @@ export default function RSRScribe() {
 
   const testX = async () => {
     try {
-      const d = await (await fetch("/api/x/test", { method:"POST" })).json();
+      const d = await (await fetch("/api/x/test", { method: "POST" })).json();
       setXStatus(d.status); setXMessage(d.message);
       if (d.status === "X connected") { setXVerifiedAt(new Date().toLocaleTimeString()); setXCredsExpanded(false); }
       pushLog(`[X] ${d.message}`);
@@ -375,8 +361,8 @@ export default function RSRScribe() {
   };
 
   const clearX = async () => {
-    try { await fetch("/api/x/credentials", { method:"DELETE" }); } catch {}
-    setXCreds({ apiKey:"", apiKeySecret:"", accessToken:"", accessTokenSecret:"" });
+    try { await fetch("/api/x/credentials", { method: "DELETE" }); } catch {}
+    setXCreds({ apiKey: "", apiKeySecret: "", accessToken: "", accessTokenSecret: "" });
     setXStatus("X not configured"); setXMessage(""); setXVerifiedAt(null); setXCredsExpanded(false);
     pushLog("[X] credentials cleared");
   };
@@ -386,51 +372,50 @@ export default function RSRScribe() {
     setPosting(true);
     try {
       const lines = axion.map((_, i) => getEditedText(i));
-      const d = await (await fetch("/api/post", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ preview:false, mode:"THREAD", lines }) })).json();
+      const d = await (await fetch("/api/post", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ preview: false, mode: "THREAD", lines }) })).json();
       setXMessage(d.message); setPosted(true); pushLog(`[X] ${d.message}`);
     } catch { setXMessage("Post failed — retry"); } finally { setPosting(false); }
   };
 
-  const copyPost = (i: number) => {
-    navigator.clipboard.writeText(getEditedText(i)).catch(()=>{});
-    setCopiedIdx(i); setTimeout(()=>setCopiedIdx(null), 1800);
-  };
-  const copyAll = () => {
+  const copyPost = (i: number) => { navigator.clipboard.writeText(getEditedText(i)).catch(() => {}); setCopiedIdx(i); setTimeout(() => setCopiedIdx(null), 1800); };
+  const copyAll  = () => {
     if (!axion?.length) return;
     const text = axion.map((_, i) => getEditedText(i)).join("\n\n──\n\n");
-    navigator.clipboard.writeText(text).catch(()=>{});
-    setCopiedAll(true); setTimeout(()=>setCopiedAll(false), 2000);
+    navigator.clipboard.writeText(text).catch(() => {});
+    setCopiedAll(true); setTimeout(() => setCopiedAll(false), 2000);
   };
 
-  // ── CHECKS ──────────────────────────────────────────────────────────────────
   const checks = [
-    { label:"Source extracted",         ok:!!cleanedSource?.extracted },
-    { label:`${minSentrix}+ signals`,   ok:goodSigs.length >= minSentrix },
-    { label:"SAGE populated",           ok:!!sage },
-    { label:`${minAxion}+ intel posts`, ok:!!axion && axion.length >= minAxion },
-    { label:"BLACKDOG evaluated",       ok:!!blackDog && blackDog.level !== "PENDING" },
-    { label:"No raw URLs",              ok:!outputHasUrls },
-    { label:"Posts ≤280 chars",         ok:allPostsValid && !!axion?.length },
+    { label: "Source extracted",        ok: !!cleanedSource?.extracted },
+    { label: `${minSentrix}+ signals`,  ok: goodSigs.length >= minSentrix },
+    { label: "SAGE populated",          ok: !!sage },
+    { label: `${minAxion}+ intel posts`,ok: !!axion && axion.length >= minAxion },
+    { label: "BLACKDOG evaluated",      ok: !!blackDog && blackDog.level !== "PENDING" },
+    { label: "No raw URLs",             ok: !outputHasUrls },
+    { label: "Posts ≤280 chars",        ok: allPostsValid && !!axion?.length },
   ];
+
+  // Source trace — uses selected candidate or sourceRecord
+  const traceCandidate = candidates.find((c) => c.url === selectedUrl) || null;
 
   // ── RENDER ──────────────────────────────────────────────────────────────────
   return (
-    <div style={{ background:BG, fontFamily:MONO, height:"100vh", overflow:"hidden", display:"flex", flexDirection:"column", position:"relative", color:"rgba(255,255,255,0.84)" }}>
+    <div style={{ background: BG, fontFamily: MONO, height: "100vh", overflow: "hidden", display: "flex", flexDirection: "column", position: "relative", color: "rgba(255,255,255,0.84)" }}>
       <GridBg />
 
       {/* HEADER */}
-      <div style={{ flexShrink:0, position:"relative", zIndex:10, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 18px", borderBottom:`1px solid ${BORDER}` }}>
+      <div style={{ flexShrink: 0, position: "relative", zIndex: 10, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 18px", borderBottom: `1px solid ${BORDER}` }}>
         <div>
-          <div style={{ fontSize:12, letterSpacing:"0.22em", textTransform:"uppercase", color:"rgba(255,255,255,0.88)", fontWeight:500 }}>RSR SCRIBE — SIGNAL DEPLOYMENT TERMINAL</div>
-          <div style={{ fontSize:9, letterSpacing:"0.24em", textTransform:"uppercase", color:"rgba(255,255,255,0.26)", marginTop:3 }}>FULL-SPECTRUM INTELLIGENCE ENGINE // BUILD LIVE-12</div>
+          <div style={{ fontSize: 12, letterSpacing: "0.22em", textTransform: "uppercase", color: "rgba(255,255,255,0.88)", fontWeight: 500 }}>RSR SCRIBE — SIGNAL DEPLOYMENT TERMINAL</div>
+          <div style={{ fontSize: 8, letterSpacing: "0.24em", textTransform: "uppercase", color: "rgba(255,255,255,0.24)", marginTop: 2 }}>FULL-SPECTRUM INTELLIGENCE ENGINE // BUILD LIVE-14</div>
         </div>
-        <div style={{ display:"flex", alignItems:"center", gap:18, fontSize:9, letterSpacing:"0.18em", textTransform:"uppercase" }}>
-          <div style={{ display:"flex", alignItems:"center", gap:6, padding:"4px 10px", border:`1px solid rgba(255,255,255,0.06)`, background:"rgba(0,0,0,0.22)" }}>
-            <ShieldIcon /><span style={{ color:"rgba(255,255,255,0.34)" }}>BLACKDOG</span>
-            <span style={{ color:riskColor }}>{blackDog?.level ?? "STANDBY"}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 18, fontSize: 8, letterSpacing: "0.18em", textTransform: "uppercase" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 9px", border: `1px solid rgba(255,255,255,0.06)`, background: "rgba(0,0,0,0.20)" }}>
+            <ShieldIcon /><span style={{ color: "rgba(255,255,255,0.30)" }}>BLACKDOG</span>
+            <span style={{ color: riskColor }}>{blackDog?.level ?? "STANDBY"}</span>
           </div>
-          <span style={{ color:"rgba(255,255,255,0.26)" }}>MODE // {outputMode.replace(/_/g," ")}</span>
-          <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+          <span style={{ color: "rgba(255,255,255,0.24)" }}>MODE // {outputMode.replace(/_/g, " ")}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <Dot color={inputLocked ? YELLOW : judgementColor} />
             <span style={{ color: inputLocked ? YELLOW : judgementColor }}>{stateLabel}</span>
           </div>
@@ -438,324 +423,352 @@ export default function RSRScribe() {
       </div>
 
       {/* MAIN 3-COL GRID */}
-      <div style={{ flex:1, minHeight:0, position:"relative", zIndex:10, display:"grid", gridTemplateColumns:"248px 1fr 380px", gap:12, padding:"12px 18px 12px", overflow:"hidden" }}>
+      <div style={{ flex: 1, minHeight: 0, position: "relative", zIndex: 10, display: "grid", gridTemplateColumns: "260px 1fr 360px", gap: 12, padding: "11px 18px 11px", overflow: "hidden" }}>
 
-        {/* ── LEFT ── */}
-        <div style={{ height:"100%", overflowY:"auto", display:"flex", flexDirection:"column", gap:8 }}>
+        {/* ── LEFT: SIGNAL CONTROL ── */}
+        <div style={{ height: "100%", overflowY: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
 
           {/* Deployment State */}
-          <div style={{ background:GLASS, border:`1px solid ${BORDER}`, backdropFilter:"blur(16px)", flexShrink:0 }}>
-            <PanelHdr label="Deployment State" right={<div style={{ display:"flex", alignItems:"center", gap:5 }}><Dot color={inputLocked ? YELLOW : judgementColor}/><span style={{ fontSize:9, color: inputLocked ? YELLOW : judgementColor, letterSpacing:"0.14em" }}>{stateLabel}</span></div>} />
-            <div style={{ padding:"10px 13px" }}>
-              <div style={{ fontSize:10, color:"rgba(255,255,255,0.44)", lineHeight:1.65 }}>
-                {inputLocked ? "Intelligence pipeline running..." : blockedReason || (sourceRecord ? "Lead source loaded." : "Awaiting signal input or AUTO SCAN.")}
-              </div>
-              {blackDog && blackDog.level !== "PENDING" && (
-                <div style={{ marginTop:10, paddingTop:8, borderTop:`1px solid ${BORDER}` }}>
-                  <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
-                    <span style={{ fontSize:8, letterSpacing:"0.22em", textTransform:"uppercase", color:"rgba(255,255,255,0.25)" }}>BLACKDOG RISK</span>
-                    <span style={{ fontSize:9, color:riskColor }}>{blackDog.level}</span>
-                  </div>
-                  <div style={{ height:2, background:"rgba(255,255,255,0.05)" }}>
-                    <div style={{ height:"100%", width:`${blackDog.score}%`, background:riskColor, transition:"width 0.6s ease" }}/>
-                  </div>
-                  <div style={{ marginTop:6, fontSize:9, color:"rgba(255,255,255,0.34)", lineHeight:1.55 }}>{blackDog.reason}</div>
-                </div>
-              )}
+          <PanelBox style={{ flexShrink: 0 }}>
+            <PH label="Deployment State" right={<div style={{ display:"flex", alignItems:"center", gap:5 }}><Dot color={inputLocked ? YELLOW : judgementColor}/><span style={{ fontSize:8, color: inputLocked ? YELLOW : judgementColor, letterSpacing:"0.12em" }}>{stateLabel}</span></div>} />
+            <div style={{ padding: "9px 12px", fontSize: 10, color: "rgba(255,255,255,0.42)", lineHeight: 1.65 }}>
+              {inputLocked ? "Intelligence pipeline running..." : blockedReason || (sourceRecord ? "Lead source loaded." : "Awaiting AUTO SCAN.")}
             </div>
-          </div>
+          </PanelBox>
+
+          {/* BLACKDOG Risk */}
+          {blackDog && blackDog.level !== "PENDING" ? (
+            <PanelBox style={{ flexShrink: 0 }}>
+              <PH label="BLACKDOG Risk" right={<span style={{ fontSize: 9, color: riskColor, letterSpacing: "0.12em" }}>{blackDog.level}</span>} />
+              <div style={{ padding: "8px 12px" }}>
+                <div style={{ height: 2, background: "rgba(255,255,255,0.05)", marginBottom: 7 }}>
+                  <div style={{ height: "100%", width: `${blackDog.score}%`, background: riskColor, transition: "width 0.6s ease" }} />
+                </div>
+                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.38)", lineHeight: 1.55 }}>{blackDog.reason}</div>
+                {escalationScore !== null && <div style={{ marginTop: 5, fontSize: 8, color: "rgba(255,255,255,0.24)" }}>ESCALATION SCORE: {escalationScore}</div>}
+              </div>
+            </PanelBox>
+          ) : null}
 
           {/* Deployment Checks */}
-          <div style={{ background:GLASS, border:`1px solid ${BORDER}`, backdropFilter:"blur(16px)", flexShrink:0 }}>
-            <PanelHdr label="Deployment Checks" />
-            <div style={{ padding:"8px 13px", display:"flex", flexDirection:"column", gap:0 }}>
+          <PanelBox style={{ flexShrink: 0 }}>
+            <PH label="Deployment Checks" />
+            <div style={{ padding: "6px 12px" }}>
               {checks.map((c) => (
-                <div key={c.label} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"4px 0", borderBottom:`1px solid rgba(255,255,255,0.03)` }}>
-                  <span style={{ fontSize:9, color:"rgba(255,255,255,0.44)" }}>{c.label}</span>
-                  <span style={{ fontSize:8, letterSpacing:"0.14em", color: c.ok ? ACCENT : RED }}>{c.ok ? "PASS" : "FAIL"}</span>
+                <div key={c.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 0", borderBottom: `1px solid rgba(255,255,255,0.03)` }}>
+                  <span style={{ fontSize: 9, color: "rgba(255,255,255,0.42)" }}>{c.label}</span>
+                  <span style={{ fontSize: 8, letterSpacing: "0.12em", color: c.ok ? ACCENT : RED }}>{c.ok ? "PASS" : "FAIL"}</span>
                 </div>
               ))}
             </div>
-          </div>
+          </PanelBox>
 
           {/* Lead Source */}
-          <div style={{ background:GLASS, border:`1px solid ${BORDER}`, backdropFilter:"blur(16px)", flexShrink:0 }}>
-            <PanelHdr label="Lead Source" />
-            <div style={{ padding:"10px 13px", fontSize:9, lineHeight:1.85, color:"rgba(255,255,255,0.40)" }}>
-              <div>HOST <span style={{ color:ACCENT }}>{sourceRecord?.sourceHost || "--"}</span></div>
-              <div>FEED <span style={{ color:"rgba(255,255,255,0.58)" }}>{sourceRecord?.feedName || "--"}</span></div>
-              <div>TIME {sourceRecord?.timestamp || "--"}</div>
-              {sourceRecord?.headline && <div style={{ marginTop:5, color:"rgba(255,255,255,0.52)", fontSize:9, lineHeight:1.55 }}>{sourceRecord.headline}</div>}
+          <PanelBox style={{ flexShrink: 0 }}>
+            <PH label="Lead Source" right={sourceRecord?.clusterSize && sourceRecord.clusterSize > 1 ?
+              <span style={{ fontSize: 7, letterSpacing: "0.16em", color: YELLOW, border: `1px solid rgba(232,167,58,0.28)`, padding: "2px 5px" }}>CLUSTER {sourceRecord.clusterSize}</span> : null} />
+            <div style={{ padding: "8px 12px", fontSize: 9, lineHeight: 1.9, color: "rgba(255,255,255,0.38)" }}>
+              <div>HOST <span style={{ color: ACCENT }}>{sourceRecord?.sourceHost || "--"}</span></div>
+              <div>FEED <span style={{ color: "rgba(255,255,255,0.55)" }}>{sourceRecord?.feedName || "--"}</span></div>
+              <div>TYPE <span style={{ color: "rgba(255,255,255,0.55)" }}>{sourceRecord?.sourceType || "--"}</span></div>
+              <div>TIME {sourceRecord?.timestamp ? relTime(sourceRecord.timestamp) : "--"}</div>
+              {sourceRecord?.headline && <div style={{ marginTop: 5, color: "rgba(255,255,255,0.50)", fontSize: 9, lineHeight: 1.5 }}>{sourceRecord.headline.slice(0, 90)}</div>}
             </div>
-          </div>
+          </PanelBox>
 
-          {/* SENTRIX */}
-          <div style={{ background:GLASS, border:`1px solid ${BORDER}`, backdropFilter:"blur(16px)", flexShrink:0 }}>
-            <PanelHdr label="SENTRIX" right={sentrix ? <span style={{ fontSize:9, color:ACCENT }}>{sentrix.length} signals</span> : null} />
-            <div style={{ padding:"8px 13px", display:"flex", flexDirection:"column", gap:6 }}>
-              {sentrix?.length ? sentrix.map((sig, i) => (
-                <div key={`${sig.text}-${i}`} style={{ padding:"6px 9px", background:"rgba(0,0,0,0.22)", borderLeft:`2px solid ${CONF_COLOR[sig.classification]??BORDER}` }}>
-                  <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
-                    <span style={{ fontSize:8, letterSpacing:"0.16em", color:CONF_COLOR[sig.classification] }}>{sig.classification}</span>
-                    <span style={{ fontSize:8, color:"rgba(255,255,255,0.24)" }}>{sig.confidence}</span>
-                  </div>
-                  <div style={{ fontSize:9, color:"rgba(255,255,255,0.64)", lineHeight:1.55 }}>{sig.text}</div>
+          {/* Source Trace */}
+          <PanelBox style={{ flexShrink: 0 }}>
+            <PH label="Source Trace" />
+            <div style={{ padding: "8px 12px" }}>
+              {sourceRecord ? (
+                <div style={{ fontSize: 9, lineHeight: 1.85, color: "rgba(255,255,255,0.38)" }}>
+                  <div style={{ marginBottom: 6, color: "rgba(255,255,255,0.52)", lineHeight: 1.5 }}>{sourceRecord.summary?.slice(0, 160) || "No summary available."}</div>
+                  <div>URL <span style={{ color: "rgba(0,255,136,0.55)", wordBreak: "break-all" }}>{sourceRecord.sourceUrl?.replace(/^https?:\/\//, "").slice(0, 55) || "--"}</span></div>
+                  {(traceCandidate?.clusterSize ?? sourceRecord.clusterSize ?? 1) > 1 && (
+                    <div style={{ marginTop: 8, paddingTop: 7, borderTop: `1px solid rgba(255,255,255,0.04)` }}>
+                      <div style={{ fontSize: 8, letterSpacing: "0.18em", color: YELLOW, marginBottom: 4 }}>MULTI-SOURCE CLUSTER</div>
+                      {(traceCandidate?.clusterFeeds ?? sourceRecord.clusterFeeds ?? []).slice(0, 3).map((f, i) => (
+                        <div key={`${f}-${i}`} style={{ fontSize: 8, color: "rgba(255,255,255,0.30)" }}>· {f}</div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )) : (
-                <div style={{ fontSize:9, color:"rgba(255,255,255,0.26)" }}>{inputLocked ? "Extracting signals..." : "Awaiting scan"}</div>
+              ) : (
+                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.24)" }}>{inputLocked ? "Fetching source..." : "No source loaded"}</div>
               )}
             </div>
-          </div>
+          </PanelBox>
+
+          {/* SENTRIX */}
+          <PanelBox style={{ flexShrink: 0 }}>
+            <PH label="SENTRIX" right={sentrix ? <span style={{ fontSize: 9, color: ACCENT }}>{sentrix.length} signals</span> : null} />
+            <div style={{ padding: "7px 12px", display: "flex", flexDirection: "column", gap: 5 }}>
+              {sentrix?.length ? sentrix.map((sig, i) => (
+                <div key={`sig-${i}`} style={{ padding: "5px 8px", background: "rgba(0,0,0,0.22)", borderLeft: `2px solid ${CONF_COLOR[sig.classification] ?? BORDER}` }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                    <span style={{ fontSize: 7, letterSpacing: "0.16em", color: CONF_COLOR[sig.classification] }}>{sig.classification}</span>
+                    <span style={{ fontSize: 7, color: "rgba(255,255,255,0.22)" }}>{sig.confidence}</span>
+                  </div>
+                  <div style={{ fontSize: 9, color: "rgba(255,255,255,0.62)", lineHeight: 1.5 }}>{sig.text}</div>
+                </div>
+              )) : (
+                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.24)" }}>{inputLocked ? "Classifying signals..." : "Awaiting scan"}</div>
+              )}
+            </div>
+          </PanelBox>
         </div>
 
-        {/* ── CENTER ── */}
-        <div style={{ height:"100%", overflowY:"auto", display:"flex", flexDirection:"column", gap:11 }}>
+        {/* ── CENTER: INTELLIGENCE DESK ── */}
+        <div style={{ height: "100%", overflowY: "auto", display: "flex", flexDirection: "column", gap: 10 }}>
 
           {/* Input Terminal */}
-          <div style={{ background:GLASS, border:`1px solid ${BORDER}`, backdropFilter:"blur(16px)", flexShrink:0 }}>
-            <PanelHdr label="Input Terminal" right={<span style={{ fontSize:9, letterSpacing:"0.16em", color: inputLocked ? YELLOW : "rgba(255,255,255,0.26)" }}>{inputLocked ? "SCANNING" : "OPEN"}</span>} />
-            <div style={{ padding:"11px 14px", display:"flex", flexDirection:"column", gap:9 }}>
-              {/* Output mode pills */}
+          <PanelBox style={{ flexShrink: 0 }}>
+            <PH label="Input Terminal" right={<span style={{ fontSize: 8, color: inputLocked ? YELLOW : "rgba(255,255,255,0.24)" }}>{inputLocked ? "SCANNING" : "OPEN"}</span>} />
+            <div style={{ padding: "10px 13px", display: "flex", flexDirection: "column", gap: 8 }}>
+              {/* Output Mode */}
               <div>
-                <div style={{ fontSize:8, letterSpacing:"0.24em", textTransform:"uppercase", color:"rgba(255,255,255,0.26)", marginBottom:6 }}>Output Mode</div>
-                <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
+                <div style={{ fontSize: 7, letterSpacing: "0.24em", textTransform: "uppercase", color: "rgba(255,255,255,0.24)", marginBottom: 6 }}>Output Mode</div>
+                <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
                   {OUTPUT_MODES.map((m) => {
                     const active = outputMode === m.id;
                     return (
                       <button key={m.id} onClick={() => { setOutputMode(m.id); setPosted(false); }} disabled={inputLocked}
-                        style={{ padding:"4px 10px", fontSize:9, letterSpacing:"0.16em", textTransform:"uppercase", border:`1px solid ${active ? BORDA : BORDER}`, color: active ? ACCENT : "rgba(255,255,255,0.34)", background: active ? "rgba(0,255,136,0.06)" : "transparent", cursor:"pointer", fontFamily:MONO }}>
+                        style={{ padding: "4px 10px", fontSize: 8, letterSpacing: "0.14em", textTransform: "uppercase", border: `1px solid ${active ? BORDA : BORDER}`, color: active ? ACCENT : "rgba(255,255,255,0.34)", background: active ? "rgba(0,255,136,0.06)" : "transparent", cursor: "pointer", fontFamily: MONO }}>
                         {m.short}
                       </button>
                     );
                   })}
                 </div>
-                <div style={{ marginTop:4, fontSize:8, color:"rgba(255,255,255,0.22)" }}>{OUTPUT_MODES.find((m)=>m.id===outputMode)?.desc}</div>
+                <div style={{ marginTop: 4, fontSize: 8, color: "rgba(255,255,255,0.20)" }}>{OUTPUT_MODES.find((m) => m.id === outputMode)?.desc}</div>
               </div>
-
-              <div style={{ display:"flex", gap:7 }}>
+              <div style={{ display: "flex", gap: 7 }}>
                 <select value={scope} onChange={(e) => setScope(e.target.value as Scope)} disabled={inputLocked}
-                  style={{ flex:1, background:"rgba(0,0,0,0.28)", border:`1px solid ${BORDER}`, padding:"6px 9px", fontSize:10, letterSpacing:"0.14em", color:"rgba(255,255,255,0.65)", outline:"none", fontFamily:MONO }}>
-                  {["GLOBAL","CONFLICT","ENERGY","CYBER"].map((s)=><option key={s}>{s}</option>)}
+                  style={{ flex: 1, background: "rgba(0,0,0,0.28)", border: `1px solid ${BORDER}`, padding: "6px 8px", fontSize: 9, color: "rgba(255,255,255,0.62)", outline: "none", fontFamily: MONO }}>
+                  {["GLOBAL","CONFLICT","ENERGY","CYBER"].map((s) => <option key={s}>{s}</option>)}
                 </select>
                 <select value={windowCode} onChange={(e) => setWindowCode(e.target.value as WindowCode)} disabled={inputLocked}
-                  style={{ flex:1, background:"rgba(0,0,0,0.28)", border:`1px solid ${BORDER}`, padding:"6px 9px", fontSize:10, letterSpacing:"0.14em", color:"rgba(255,255,255,0.65)", outline:"none", fontFamily:MONO }}>
-                  {["1H","3H","6H","12H","24H"].map((w)=><option key={w}>{w}</option>)}
+                  style={{ flex: 1, background: "rgba(0,0,0,0.28)", border: `1px solid ${BORDER}`, padding: "6px 8px", fontSize: 9, color: "rgba(255,255,255,0.62)", outline: "none", fontFamily: MONO }}>
+                  {["1H","3H","6H","12H","24H"].map((w) => <option key={w}>{w}</option>)}
                 </select>
                 <button onClick={() => runScan()} disabled={inputLocked}
-                  style={{ padding:"6px 18px", fontSize:9, letterSpacing:"0.22em", textTransform:"uppercase", border:`1px solid ${inputLocked ? BORDA : ACCENT}`, color: inputLocked ? "rgba(0,255,136,0.40)" : ACCENT, background: inputLocked ? "rgba(0,255,136,0.04)" : "rgba(0,255,136,0.07)", cursor: inputLocked ? "not-allowed" : "pointer", fontFamily:MONO }}>
+                  style={{ padding: "6px 18px", fontSize: 9, letterSpacing: "0.22em", textTransform: "uppercase", border: `1px solid ${inputLocked ? BORDA : ACCENT}`, color: inputLocked ? "rgba(0,255,136,0.38)" : ACCENT, background: inputLocked ? "rgba(0,255,136,0.04)" : "rgba(0,255,136,0.07)", cursor: inputLocked ? "not-allowed" : "pointer", fontFamily: MONO }}>
                   {inputLocked ? "SCANNING..." : "AUTO SCAN"}
                 </button>
               </div>
             </div>
-          </div>
+          </PanelBox>
 
           {/* Intelligence Flow */}
-          <div style={{ background:GLASS, border:`1px solid ${BORDER}`, backdropFilter:"blur(16px)", flexShrink:0 }}>
-            <PanelHdr label="Intelligence Flow" />
-            <div style={{ padding:"10px 14px", display:"grid", gridTemplateColumns:"repeat(6,1fr)", gap:5 }}>
+          <PanelBox style={{ flexShrink: 0 }}>
+            <PH label="Intelligence Flow" />
+            <div style={{ padding: "9px 13px", display: "grid", gridTemplateColumns: "repeat(6,1fr)", gap: 5 }}>
               {PIPELINE.map((stage, idx) => {
-                const st   = stageStatuses[stage] ?? "STANDBY";
-                const proc = st === "PROCESSING";
-                const done = st === "COMPLETE";
-                const fail = st === "FAILED";
-                const nc   = fail ? RED : (proc||done) ? ACCENT : "rgba(255,255,255,0.12)";
+                const st = stageStatuses[stage] ?? "STANDBY";
+                const proc = st === "PROCESSING", done = st === "COMPLETE", fail = st === "FAILED";
+                const nc = fail ? RED : (proc || done) ? ACCENT : "rgba(255,255,255,0.11)";
                 return (
-                  <div key={stage} style={{ display:"flex", flexDirection:"column", alignItems:"center", position:"relative" }}>
-                    {idx < PIPELINE.length-1 && (
-                      <div style={{ position:"absolute", top:19, left:"50%", width:"100%", height:1, background: done ? "rgba(0,255,136,0.28)" : "rgba(255,255,255,0.04)", transition:"all 400ms" }} />
-                    )}
-                    <div style={{ position:"relative", zIndex:1, width:38, height:38, display:"flex", alignItems:"center", justifyContent:"center", border:`1px solid ${nc}`, background: proc ? "rgba(0,255,136,0.06)" : "rgba(0,0,0,0.32)", color:nc, fontSize:10, boxShadow: proc ? "0 0 10px rgba(0,255,136,0.22)" : "none", animation: proc ? "pulse 1.2s ease-in-out infinite" : "none", transition:"all 230ms" }}>
-                      {idx+1}
+                  <div key={stage} style={{ display: "flex", flexDirection: "column", alignItems: "center", position: "relative" }}>
+                    {idx < PIPELINE.length - 1 && <div style={{ position:"absolute", top:19, left:"50%", width:"100%", height:1, background: done ? "rgba(0,255,136,0.24)" : "rgba(255,255,255,0.04)", transition:"all 400ms" }} />}
+                    <div style={{ position:"relative", zIndex:1, width:38, height:38, display:"flex", alignItems:"center", justifyContent:"center", border:`1px solid ${nc}`, background: proc ? "rgba(0,255,136,0.06)" : "rgba(0,0,0,0.30)", color:nc, fontSize:10, boxShadow: proc ? "0 0 9px rgba(0,255,136,0.20)" : "none", animation: proc ? "pulse 1.2s ease-in-out infinite" : "none", transition:"all 220ms" }}>
+                      {idx + 1}
                     </div>
-                    <div style={{ marginTop:5, fontSize:7, letterSpacing:"0.14em", textTransform:"uppercase", color:"rgba(255,255,255,0.48)", textAlign:"center" }}>{stage}</div>
-                    <div style={{ marginTop:1, fontSize:7, letterSpacing:"0.10em", color: proc ? ACCENT : fail ? RED : done ? "rgba(0,255,136,0.48)" : "rgba(255,255,255,0.16)" }}>{st}</div>
+                    <div style={{ marginTop: 5, fontSize: 7, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(255,255,255,0.44)", textAlign: "center" }}>{stage}</div>
+                    <div style={{ marginTop: 1, fontSize: 7, color: proc ? ACCENT : fail ? RED : done ? "rgba(0,255,136,0.44)" : "rgba(255,255,255,0.16)" }}>{st}</div>
                   </div>
                 );
               })}
             </div>
-          </div>
+          </PanelBox>
 
-          {/* SAGE Analysis */}
-          <div style={{ background:GLASS, border:`1px solid ${BORDER}`, backdropFilter:"blur(16px)", flexShrink:0 }}>
-            <PanelHdr label="SAGE Analysis" right={sage ? <span style={{ fontSize:9, color:ACCENT }}>ACTIVE</span> : null} />
-            <div style={{ padding:"10px 14px" }}>
-              {sage ? (
-                <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
-                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:7 }}>
-                    {[["DOMAIN",sage.DOMAIN],["LOCATION",sage.LOCATION],["RISK",`${blackDog?.level??"—"} / ${escalationScore??0}`]].map(([k,v])=>(
-                      <div key={k} style={{ padding:"7px 10px", background:GLASS2, borderLeft:`2px solid ${BORDA}` }}>
-                        <div style={{ fontSize:7, letterSpacing:"0.22em", textTransform:"uppercase", color:ACCENT, marginBottom:4 }}>{k}</div>
-                        <div style={{ fontSize:9, color:"rgba(255,255,255,0.75)" }}>{v}</div>
-                      </div>
-                    ))}
-                  </div>
-                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:7 }}>
-                    {[["WHAT",sage.WHAT],["WHY",sage.WHY],["MECHANISM",sage.MECHANISM],["CHANGING",sage.CHANGING]].map(([k,v])=>(
-                      <div key={k} style={{ padding:"7px 10px", background:GLASS2, borderLeft:`1px solid rgba(255,255,255,0.05)` }}>
-                        <div style={{ fontSize:7, letterSpacing:"0.20em", textTransform:"uppercase", color:"rgba(255,255,255,0.28)", marginBottom:3 }}>{k}</div>
-                        <div style={{ fontSize:9, color:"rgba(255,255,255,0.64)", lineHeight:1.55 }}>{v}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div style={{ fontSize:9, color:"rgba(255,255,255,0.26)" }}>{inputLocked ? "Analysis in progress..." : "Awaiting signal input"}</div>
-              )}
-            </div>
-          </div>
-
-          {/* System Log */}
-          <div style={{ background:GLASS, border:`1px solid ${BORDER}`, backdropFilter:"blur(16px)", flexShrink:0 }}>
-            <PanelHdr label="System Log" right={<span style={{ fontSize:8, color:"rgba(255,255,255,0.20)" }}>{logs.length}</span>} />
-            <div ref={logRef} style={{ padding:"8px 13px", height:90, overflowY:"auto", fontSize:9, lineHeight:1.75, color:"rgba(255,255,255,0.34)" }}>
-              {logs.map((line, i) => <div key={`${line}-${i}`}>{line}</div>)}
-            </div>
-          </div>
-        </div>
-
-        {/* ── RIGHT ── */}
-        <div style={{ height:"100%", display:"flex", flexDirection:"column", gap:8, overflow:"hidden" }}>
-
-          {/* X DEPLOYMENT DRAFT — fills available height */}
-          <div style={{ flex:"1 1 0", minHeight:0, display:"flex", flexDirection:"column", background:GLASS, border:`1px solid ${BORDER}`, backdropFilter:"blur(16px)", overflow:"hidden" }}>
-            <PanelHdr label="X Deployment Draft"
-              right={<div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          {/* X DEPLOYMENT DRAFT — CENTER HERO */}
+          <div style={{ background: GLASS, border: `1px solid ${BORDER}`, backdropFilter: "blur(16px)", flexShrink: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 13px", borderBottom: `1px solid ${BORDER}` }}>
+              <span style={{ fontSize: 8, letterSpacing: "0.28em", textTransform: "uppercase", color: "rgba(255,255,255,0.32)" }}>X Deployment Draft</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 {axion && axion.length > 0 && (
-                  <button onClick={copyAll} style={{ display:"flex", alignItems:"center", gap:4, padding:"3px 8px", fontSize:8, letterSpacing:"0.14em", textTransform:"uppercase", border:`1px solid ${copiedAll ? BORDA : "rgba(255,255,255,0.06)"}`, color: copiedAll ? ACCENT : "rgba(255,255,255,0.32)", background:"transparent", cursor:"pointer", fontFamily:MONO }}>
-                    {copiedAll ? <CheckIcon/> : <CopyIcon/>}
-                    {copiedAll ? "COPIED" : "COPY ALL"}
+                  <button onClick={copyAll} style={{ display:"flex", alignItems:"center", gap:4, padding:"2px 7px", fontSize:8, letterSpacing:"0.12em", textTransform:"uppercase", border:`1px solid ${copiedAll ? BORDA : "rgba(255,255,255,0.06)"}`, color: copiedAll ? ACCENT : "rgba(255,255,255,0.28)", background:"transparent", cursor:"pointer", fontFamily:MONO }}>
+                    {copiedAll ? <CheckIcon/> : <CopyIcon/>} {copiedAll ? "COPIED" : "COPY ALL"}
                   </button>
                 )}
-                <span style={{ fontSize:9, color:ACCENT }}>{axion ? `${visibleCount}/${axion.length}` : "–"}</span>
-              </div>}
-            />
+                <span style={{ fontSize: 9, color: ACCENT }}>{axion ? `${visibleCount}/${axion.length}` : "–"}</span>
+              </div>
+            </div>
 
-            {/* Scrollable cards area */}
-            <div style={{ flex:1, minHeight:0, overflowY:"auto", padding:"8px 10px", display:"flex", flexDirection:"column", gap:7 }}>
+            {/* Cards — natural height, no artificial cap */}
+            <div style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 9 }}>
               {axion?.length ? axion.slice(0, visibleCount).map((post, i) => {
-                const txt      = postEdits[i] ?? "";
-                const charLen  = txt.length;
-                const counterColor = charLen > 260 ? RED : charLen > 240 ? YELLOW : "rgba(255,255,255,0.20)";
+                const txt = postEdits[i] ?? "";
+                const charLen = txt.length;
+                const counterColor = charLen > 260 ? RED : charLen > 240 ? YELLOW : "rgba(255,255,255,0.18)";
                 const overLimit = charLen > MAX_CHARS;
+                const reason = deriveConfidenceReason(post, currentClusterSize);
                 return (
-                  <div key={`post-${i}`} style={{ background:GLASS2, border:`1px solid ${overLimit ? "rgba(224,85,85,0.22)" : "rgba(255,255,255,0.05)"}`, animation:"fadeUp 200ms ease", flexShrink:0 }}>
+                  <div key={`post-${i}`} style={{ background: GLASS2, border: `1px solid ${overLimit ? "rgba(224,85,85,0.20)" : "rgba(255,255,255,0.05)"}`, animation: "fadeUp 200ms ease" }}>
                     {/* Card header */}
-                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"5px 10px", borderBottom:`1px solid rgba(255,255,255,0.04)` }}>
-                      <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                        <span style={{ fontSize:8, color:"rgba(255,255,255,0.26)", letterSpacing:"0.12em" }}>#{i+1}</span>
+                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"5px 11px", borderBottom:`1px solid rgba(255,255,255,0.04)` }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                        <span style={{ fontSize:8, color:"rgba(255,255,255,0.22)", letterSpacing:"0.10em" }}>#{i+1}</span>
                         <span style={{ fontSize:8, letterSpacing:"0.14em", textTransform:"uppercase", color:CONF_COLOR[post.confidence] }}>{post.confidence}</span>
+                        {currentClusterSize > 1 && <span style={{ fontSize:7, color:YELLOW, border:`1px solid rgba(232,167,58,0.25)`, padding:"1px 4px", letterSpacing:"0.12em" }}>CLUSTER {currentClusterSize}</span>}
                       </div>
-                      <button onClick={() => copyPost(i)}
-                        style={{ display:"flex", alignItems:"center", gap:3, color: copiedIdx===i ? ACCENT : "rgba(255,255,255,0.26)", background:"transparent", border:`1px solid ${copiedIdx===i ? BORDA : "rgba(255,255,255,0.05)"}`, padding:"2px 6px", cursor:"pointer", fontFamily:MONO, fontSize:8 }}>
+                      <button onClick={() => copyPost(i)} style={{ display:"flex", alignItems:"center", gap:3, color: copiedIdx===i ? ACCENT : "rgba(255,255,255,0.24)", background:"transparent", border:`1px solid ${copiedIdx===i ? BORDA : "rgba(255,255,255,0.05)"}`, padding:"2px 6px", cursor:"pointer", fontFamily:MONO, fontSize:8 }}>
                         {copiedIdx===i ? <CheckIcon/> : <CopyIcon/>}
                       </button>
                     </div>
-                    {/* Structured 4-line display */}
-                    <div style={{ padding:"7px 10px" }}>
-                      <div style={{ fontSize:8, letterSpacing:"0.16em", textTransform:"uppercase", color:ACCENT, fontWeight:500, marginBottom:4 }}>{post.domain} / {post.location}</div>
-                      <div style={{ fontSize:11, color:"rgba(255,255,255,0.82)", lineHeight:1.45, marginBottom:4 }}>{post.signal}</div>
-                      <div style={{ fontSize:9, color:"rgba(255,255,255,0.46)", lineHeight:1.5, marginBottom:6 }}>{post.detail}</div>
+
+                    {/* 4-line structured display */}
+                    <div style={{ padding: "8px 11px" }}>
+                      <div style={{ fontSize: 8, letterSpacing: "0.16em", textTransform: "uppercase", color: ACCENT, fontWeight: 500, marginBottom: 5 }}>{post.domain} / {post.location}</div>
+                      <div style={{ fontSize: 12, color: "rgba(255,255,255,0.86)", lineHeight: 1.45, marginBottom: 4 }}>{post.signal}</div>
+                      {post.detail && <div style={{ fontSize: 10, color: "rgba(255,255,255,0.48)", lineHeight: 1.5, marginBottom: 7 }}>{post.detail}</div>}
+
+                      {/* Confidence reasoning */}
+                      <div style={{ display:"flex", alignItems:"flex-start", gap:5, padding:"5px 8px", background:"rgba(0,0,0,0.20)", borderLeft:`1px solid rgba(255,255,255,0.08)`, marginBottom:8 }}>
+                        <span style={{ fontSize:7, letterSpacing:"0.16em", textTransform:"uppercase", color:"rgba(255,255,255,0.24)", flexShrink:0, marginTop:1 }}>WHY</span>
+                        <span style={{ fontSize:9, color:"rgba(255,255,255,0.42)", lineHeight:1.5 }}>{reason}</span>
+                      </div>
+
                       {/* Editable composer */}
-                      <div style={{ borderTop:`1px solid rgba(255,255,255,0.05)`, paddingTop:6 }}>
+                      <div style={{ borderTop: `1px solid rgba(255,255,255,0.04)`, paddingTop: 7 }}>
                         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:4 }}>
-                          <div style={{ display:"flex", alignItems:"center", gap:4 }}><EditIcon /><span style={{ fontSize:7, letterSpacing:"0.18em", textTransform:"uppercase", color:"rgba(255,255,255,0.22)" }}>Edit before posting</span></div>
-                          <span style={{ fontSize:8, color:counterColor, letterSpacing:"0.08em" }}>{charLen}/{MAX_CHARS}</span>
+                          <div style={{ display:"flex", alignItems:"center", gap:4 }}><EditIcon /><span style={{ fontSize:7, letterSpacing:"0.16em", textTransform:"uppercase", color:"rgba(255,255,255,0.20)" }}>Edit before posting</span></div>
+                          <span style={{ fontSize:8, color:counterColor }}>{charLen}/{MAX_CHARS}</span>
                         </div>
                         <textarea
                           value={txt}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            if (val.length <= MAX_CHARS) setPostEdits((p) => ({ ...p, [i]: val }));
-                          }}
+                          onChange={(e) => { if (e.target.value.length <= MAX_CHARS) setPostEdits((p) => ({ ...p, [i]: e.target.value })); }}
                           maxLength={MAX_CHARS}
-                          style={{ width:"100%", minHeight:60, maxHeight:100, overflowY:"auto", resize:"none", background:"rgba(0,0,0,0.28)", border:`1px solid ${overLimit ? "rgba(224,85,85,0.28)" : "rgba(255,255,255,0.06)"}`, padding:"6px 8px", fontSize:9, color:"rgba(255,255,255,0.70)", outline:"none", fontFamily:MONO, lineHeight:1.6, boxSizing:"border-box" }} />
+                          style={{ width:"100%", minHeight:64, maxHeight:100, overflowY:"auto", resize:"none", background:"rgba(0,0,0,0.26)", border:`1px solid ${overLimit ? "rgba(224,85,85,0.25)" : "rgba(255,255,255,0.06)"}`, padding:"6px 8px", fontSize:9, color:"rgba(255,255,255,0.68)", outline:"none", fontFamily:MONO, lineHeight:1.6, boxSizing:"border-box" }} />
                       </div>
                     </div>
                   </div>
                 );
               }) : (
-                <div style={{ padding:"16px 10px", fontSize:10, color:"rgba(255,255,255,0.22)", fontStyle:"italic" }}>
-                  {inputLocked ? "Composing intelligence posts..." : "No signals — run AUTO SCAN"}
+                <div style={{ padding: "20px 12px", fontSize: 10, color: "rgba(255,255,255,0.22)", textAlign: "center", fontStyle: "italic" }}>
+                  {inputLocked ? "Composing intelligence posts..." : "No signals generated — run AUTO SCAN"}
                 </div>
               )}
             </div>
 
             {/* BLACKDOG footer */}
-            <div style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 13px", borderTop:`1px solid rgba(255,255,255,0.04)`, flexShrink:0 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:6, padding:"5px 13px", borderTop:`1px solid rgba(255,255,255,0.04)` }}>
               <ShieldIcon />
-              <span style={{ fontSize:7, letterSpacing:"0.14em", textTransform:"uppercase", color:"rgba(255,255,255,0.20)" }}>Protected by BLACKDOG</span>
+              <span style={{ fontSize:7, letterSpacing:"0.14em", textTransform:"uppercase", color:"rgba(255,255,255,0.18)" }}>Protected by BLACKDOG</span>
               {blackDog && <span style={{ fontSize:8, color:riskColor, marginLeft:"auto" }}>{blackDog.level}</span>}
             </div>
           </div>
 
-          {/* SIGNAL CANDIDATES — fixed max height */}
-          <div style={{ flexShrink:0, background:GLASS, border:`1px solid ${BORDER}`, backdropFilter:"blur(16px)", display:"flex", flexDirection:"column", maxHeight:195, overflow:"hidden" }}>
-            <PanelHdr label="Signal Candidates" right={candidates.length ? <span style={{ fontSize:9, color:ACCENT }}>{candidates.length}</span> : null} />
-            <div style={{ flex:1, overflowY:"auto", padding:"6px 8px", display:"flex", flexDirection:"column", gap:5 }}>
+          {/* SAGE Analysis */}
+          <PanelBox style={{ flexShrink: 0 }}>
+            <PH label="SAGE Analysis" right={sage ? <span style={{ fontSize: 8, color: ACCENT }}>ACTIVE</span> : null} />
+            <div style={{ padding: "9px 13px" }}>
+              {sage ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 7 }}>
+                    {[["DOMAIN", sage.DOMAIN], ["LOCATION", sage.LOCATION], ["RISK", `${blackDog?.level ?? "—"} / ${escalationScore ?? 0}`]].map(([k, v]) => (
+                      <div key={k} style={{ padding: "6px 9px", background: GLASS2, borderLeft: `2px solid ${BORDA}` }}>
+                        <div style={{ fontSize: 7, letterSpacing: "0.20em", textTransform: "uppercase", color: ACCENT, marginBottom: 3 }}>{k}</div>
+                        <div style={{ fontSize: 9, color: "rgba(255,255,255,0.72)" }}>{v}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7 }}>
+                    {[["WHAT", sage.WHAT], ["WHY", sage.WHY], ["MECHANISM", sage.MECHANISM], ["CHANGING", sage.CHANGING]].map(([k, v]) => (
+                      <div key={k} style={{ padding: "6px 9px", background: GLASS2, borderLeft: `1px solid rgba(255,255,255,0.05)` }}>
+                        <div style={{ fontSize: 7, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(255,255,255,0.26)", marginBottom: 3 }}>{k}</div>
+                        <div style={{ fontSize: 9, color: "rgba(255,255,255,0.62)", lineHeight: 1.5 }}>{v}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.24)" }}>{inputLocked ? "Analysis in progress..." : "Awaiting scan"}</div>
+              )}
+            </div>
+          </PanelBox>
+
+          {/* System Log */}
+          <PanelBox style={{ flexShrink: 0 }}>
+            <PH label="System Log" right={<span style={{ fontSize: 7, color: "rgba(255,255,255,0.18)" }}>{logs.length}</span>} />
+            <div ref={logRef} style={{ padding: "7px 12px", height: 88, overflowY: "auto", fontSize: 8, lineHeight: 1.75, color: "rgba(255,255,255,0.32)" }}>
+              {logs.map((line, i) => <div key={`${line}-${i}`}>{line}</div>)}
+            </div>
+          </PanelBox>
+        </div>
+
+        {/* ── RIGHT: SUPPORT RAIL ── */}
+        <div style={{ height: "100%", display: "flex", flexDirection: "column", gap: 8, overflow: "hidden" }}>
+
+          {/* Signal Candidates */}
+          <div style={{ flexShrink: 0, background: GLASS, border: `1px solid ${BORDER}`, backdropFilter: "blur(16px)", display: "flex", flexDirection: "column", maxHeight: 230, overflow: "hidden" }}>
+            <PH label="Signal Candidates" right={candidates.length ? <span style={{ fontSize: 9, color: ACCENT }}>{candidates.length}</span> : null} />
+            <div style={{ flex: 1, overflowY: "auto", padding: "6px 8px", display: "flex", flexDirection: "column", gap: 5 }}>
               {candidates.length ? candidates.map((c, i) => {
                 const sel = selectedUrl === c.url;
+                const cs  = c.clusterSize ?? 1;
                 return (
-                  <button key={`${c.url}-${i}`} onClick={()=>promoteCandidate(c)} disabled={inputLocked}
-                    style={{ textAlign:"left", padding:"5px 8px", background: sel ? "rgba(0,255,136,0.04)" : "rgba(0,0,0,0.18)", border:`1px solid ${sel ? BORDA : "rgba(255,255,255,0.04)"}`, cursor:"pointer", fontFamily:MONO }}>
-                    <div style={{ display:"flex", justifyContent:"space-between", marginBottom:2 }}>
-                      <span style={{ fontSize:7, letterSpacing:"0.14em", color:ACCENT }}>{c.feedName}</span>
-                      <span style={{ fontSize:7, color:"rgba(255,255,255,0.24)" }}>{relTime(c.publishedAt)}</span>
+                  <button key={`cand-${i}`} onClick={() => promoteCandidate(c)} disabled={inputLocked}
+                    style={{ textAlign: "left", padding: "5px 8px", background: sel ? "rgba(0,255,136,0.04)" : "rgba(0,0,0,0.16)", border: `1px solid ${sel ? BORDA : "rgba(255,255,255,0.04)"}`, cursor: "pointer", fontFamily: MONO }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                        <span style={{ fontSize: 7, letterSpacing: "0.12em", color: ACCENT }}>{c.feedName}</span>
+                        {cs > 1 && <span style={{ fontSize: 6, color: YELLOW, border: `1px solid rgba(232,167,58,0.25)`, padding: "1px 4px", letterSpacing: "0.10em" }}>CLUSTER {cs}</span>}
+                      </div>
+                      <span style={{ fontSize: 7, color: "rgba(255,255,255,0.22)" }}>{relTime(c.publishedAt)}</span>
                     </div>
-                    <div style={{ fontSize:9, color:"rgba(255,255,255,0.56)", lineHeight:1.4 }}>{c.headline}</div>
+                    <div style={{ fontSize: 9, color: sel ? "rgba(255,255,255,0.72)" : "rgba(255,255,255,0.50)", lineHeight: 1.4 }}>{c.headline.slice(0, 85)}</div>
                   </button>
                 );
               }) : (
-                <div style={{ padding:"8px 8px", fontSize:9, color:"rgba(255,255,255,0.22)" }}>{inputLocked ? "Loading..." : "No candidates loaded"}</div>
+                <div style={{ padding: "8px", fontSize: 9, color: "rgba(255,255,255,0.22)" }}>{inputLocked ? "Loading..." : "No candidates loaded"}</div>
               )}
             </div>
           </div>
 
-          {/* X DEPLOYMENT CONTROL */}
-          <div style={{ flexShrink:0, background:GLASS, border:`1px solid ${BORDER}`, backdropFilter:"blur(16px)" }}>
-            <PanelHdr label="X Deployment Control" />
+          {/* X Deployment Control */}
+          <div style={{ flexShrink: 0, background: GLASS, border: `1px solid ${BORDER}`, backdropFilter: "blur(16px)" }}>
+            <PH label="X Deployment Control" />
             {/* Status strip */}
-            <div style={{ padding:"7px 13px", borderBottom:`1px solid ${BORDER}`, background:"rgba(0,0,0,0.18)" }}>
-              <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+            <div style={{ padding: "7px 12px", borderBottom: `1px solid ${BORDER}`, background: "rgba(0,0,0,0.18)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
                 <Dot color={deployStatusColor} />
-                <span style={{ fontSize:8, letterSpacing:"0.16em", textTransform:"uppercase", color:deployStatusColor }}>{deployStatus}</span>
+                <span style={{ fontSize: 8, letterSpacing: "0.14em", textTransform: "uppercase", color: deployStatusColor }}>{deployStatus}</span>
               </div>
               {deployStatus === "X CONNECTED / CONTENT BLOCKED" && (
-                <div style={{ marginTop:5, fontSize:8, color:"rgba(255,255,255,0.36)", lineHeight:1.5 }}>{deployBlockReason()}</div>
+                <div style={{ marginTop: 5, fontSize: 8, color: "rgba(255,255,255,0.34)", lineHeight: 1.5 }}>{deployBlockReason()}</div>
               )}
               {deployStatus === "X CONNECTED / POSTED" && (
-                <div style={{ marginTop:4, fontSize:8, color:ACCENT }}>Successfully posted to X.</div>
+                <div style={{ marginTop: 4, fontSize: 8, color: ACCENT }}>Successfully posted to X.</div>
               )}
             </div>
-            <div style={{ padding:"10px 13px", display:"flex", flexDirection:"column", gap:8 }}>
+            <div style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
               {xStatus === "X connected" && !xCredsExpanded ? (
                 <div>
-                  <div style={{ fontSize:9, letterSpacing:"0.14em", color:ACCENT, marginBottom:3 }}>AUTHENTICATED</div>
-                  <div style={{ fontSize:8, color:"rgba(255,255,255,0.38)", lineHeight:1.75 }}>
+                  <div style={{ fontSize: 9, letterSpacing: "0.12em", color: ACCENT, marginBottom: 3 }}>AUTHENTICATED</div>
+                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.36)", lineHeight: 1.8 }}>
                     <div>X STATUS: CONNECTED</div>
                     {xVerifiedAt && <div>VERIFIED: {xVerifiedAt}</div>}
                   </div>
                   <button onClick={() => setXCredsExpanded(true)}
-                    style={{ marginTop:7, display:"flex", alignItems:"center", gap:4, padding:"3px 8px", fontSize:7, letterSpacing:"0.16em", textTransform:"uppercase", border:`1px solid rgba(255,255,255,0.07)`, color:"rgba(255,255,255,0.38)", background:"transparent", cursor:"pointer", fontFamily:MONO }}>
+                    style={{ marginTop: 7, display:"flex", alignItems:"center", gap:4, padding:"3px 7px", fontSize:7, letterSpacing:"0.14em", textTransform:"uppercase", border:`1px solid rgba(255,255,255,0.07)`, color:"rgba(255,255,255,0.36)", background:"transparent", cursor:"pointer", fontFamily:MONO }}>
                     <EditIcon /> EDIT CREDENTIALS
                   </button>
                 </div>
               ) : (
-                <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6 }}>
-                    {([["API KEY","apiKey"],["API KEY SECRET","apiKeySecret"],["ACCESS TOKEN","accessToken"],["ACCESS TOKEN SECRET","accessTokenSecret"]] as [string,keyof XCreds][]).map(([lbl,k])=>(
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                    {([["API KEY", "apiKey"], ["API KEY SECRET", "apiKeySecret"], ["ACCESS TOKEN", "accessToken"], ["ACCESS TOKEN SECRET", "accessTokenSecret"]] as [string, keyof XCreds][]).map(([lbl, k]) => (
                       <div key={k}>
-                        <div style={{ fontSize:7, letterSpacing:"0.18em", textTransform:"uppercase", color:"rgba(255,255,255,0.28)", marginBottom:3 }}>{lbl}</div>
+                        <div style={{ fontSize: 7, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(255,255,255,0.26)", marginBottom: 3 }}>{lbl}</div>
                         <input type="password" value={xCreds[k]} onChange={(e) => setXCreds((p) => ({ ...p, [k]: e.target.value }))}
-                          style={{ width:"100%", background:"rgba(0,0,0,0.28)", border:`1px solid ${BORDER}`, padding:"5px 7px", fontSize:10, color:"rgba(255,255,255,0.72)", outline:"none", fontFamily:MONO, boxSizing:"border-box" }} />
+                          style={{ width: "100%", background: "rgba(0,0,0,0.28)", border: `1px solid ${BORDER}`, padding: "5px 7px", fontSize: 9, color: "rgba(255,255,255,0.70)", outline: "none", fontFamily: MONO, boxSizing: "border-box" }} />
                       </div>
                     ))}
                   </div>
-                  {xCredsExpanded && (
-                    <button onClick={() => setXCredsExpanded(false)} style={{ alignSelf:"flex-start", padding:"2px 7px", fontSize:7, letterSpacing:"0.14em", textTransform:"uppercase", border:`1px solid rgba(255,255,255,0.07)`, color:"rgba(255,255,255,0.32)", background:"transparent", cursor:"pointer", fontFamily:MONO }}>CANCEL</button>
-                  )}
+                  {xCredsExpanded && <button onClick={() => setXCredsExpanded(false)} style={{ alignSelf:"flex-start", padding:"2px 6px", fontSize:7, letterSpacing:"0.12em", textTransform:"uppercase", border:`1px solid rgba(255,255,255,0.06)`, color:"rgba(255,255,255,0.30)", background:"transparent", cursor:"pointer", fontFamily:MONO }}>CANCEL</button>}
                 </div>
               )}
-              <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
+              <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
                 <Btn onClick={saveXCreds} xs>SAVE</Btn>
                 <Btn onClick={testX} xs>TEST</Btn>
                 <Btn onClick={clearX} xs>CLEAR</Btn>
@@ -763,32 +776,33 @@ export default function RSRScribe() {
                   {posting ? "POSTING..." : posted ? "POSTED ✓" : "POST TO X"}
                 </Btn>
               </div>
-              {xMessage && <div style={{ fontSize:8, color:"rgba(255,255,255,0.34)", lineHeight:1.5 }}>{xMessage}</div>}
+              {xMessage && <div style={{ fontSize: 8, color: "rgba(255,255,255,0.32)", lineHeight: 1.5 }}>{xMessage}</div>}
             </div>
           </div>
 
-          {/* SCRIBE DECISION */}
-          <div style={{ flexShrink:0, background:GLASS, border:`1px solid ${BORDER}`, backdropFilter:"blur(16px)" }}>
-            <PanelHdr label="Scribe Decision" />
-            <div style={{ padding:"10px 13px" }}>
-              <div style={{ padding:"10px 12px", background:GLASS2, borderLeft:`2px solid ${judgementColor}` }}>
-                <div style={{ fontSize:7, letterSpacing:"0.22em", textTransform:"uppercase", color:"rgba(255,255,255,0.26)", marginBottom:5 }}>Terminal Judgement</div>
-                <div style={{ fontSize:20, fontWeight:500, letterSpacing:"0.06em", color:judgementColor, marginBottom:10 }}>{judgement}</div>
-                <div style={{ display:"flex", flexDirection:"column", gap:5, fontSize:8, lineHeight:1.65 }}>
+          {/* Scribe Decision */}
+          <div style={{ flexShrink: 0, background: GLASS, border: `1px solid ${BORDER}`, backdropFilter: "blur(16px)" }}>
+            <PH label="Scribe Decision" />
+            <div style={{ padding: "9px 12px" }}>
+              <div style={{ padding: "9px 11px", background: GLASS2, borderLeft: `2px solid ${judgementColor}` }}>
+                <div style={{ fontSize: 7, letterSpacing: "0.22em", textTransform: "uppercase", color: "rgba(255,255,255,0.24)", marginBottom: 5 }}>Terminal Judgement</div>
+                <div style={{ fontSize: 20, fontWeight: 500, letterSpacing: "0.06em", color: judgementColor, marginBottom: 9 }}>{judgement}</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 5, fontSize: 8, lineHeight: 1.65 }}>
                   {[
                     ["Signals extracted",  `${goodSigs.length} / ${minSentrix} required`],
                     ["Mode requirement",   `${outputMode.replace(/_/g," ")} — ${minAxion}+ posts`],
+                    ["Source cluster",     currentClusterSize > 1 ? `${currentClusterSize} sources` : "Single source"],
                     ["Deployment package", ready ? "VALID" : "INVALID"],
                     ["X auth",             xStatus === "X connected" ? "CONNECTED" : "NOT CONNECTED"],
-                  ].map(([k,v]) => (
-                    <div key={k} style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                      <span style={{ color:"rgba(255,255,255,0.36)" }}>{k}</span>
-                      <span style={{ color: v === "VALID" || v === "CONNECTED" ? ACCENT : v === "INVALID" || v === "NOT CONNECTED" ? RED : "rgba(255,255,255,0.55)" }}>{v}</span>
+                  ].map(([k, v]) => (
+                    <div key={k} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <span style={{ color: "rgba(255,255,255,0.34)" }}>{k}</span>
+                      <span style={{ color: v === "VALID" || v === "CONNECTED" ? ACCENT : v === "INVALID" || v === "NOT CONNECTED" ? RED : "rgba(255,255,255,0.52)" }}>{v}</span>
                     </div>
                   ))}
                 </div>
                 {!ready && !posted && deployBlockReason() && (
-                  <div style={{ marginTop:8, paddingTop:7, borderTop:`1px solid rgba(255,255,255,0.04)`, fontSize:8, color:"rgba(255,255,255,0.36)", lineHeight:1.55 }}>{deployBlockReason()}</div>
+                  <div style={{ marginTop: 8, paddingTop: 7, borderTop: `1px solid rgba(255,255,255,0.04)`, fontSize: 8, color: "rgba(255,255,255,0.34)", lineHeight: 1.5 }}>{deployBlockReason()}</div>
                 )}
               </div>
             </div>
@@ -797,13 +811,13 @@ export default function RSRScribe() {
       </div>
 
       <style>{`
-        @keyframes pulse { 0%,100%{box-shadow:0 0 10px rgba(0,255,136,0.22);} 50%{box-shadow:0 0 20px rgba(0,255,136,0.46);} }
+        @keyframes pulse { 0%,100%{box-shadow:0 0 9px rgba(0,255,136,0.20);} 50%{box-shadow:0 0 18px rgba(0,255,136,0.40);} }
         @keyframes fadeUp { from{opacity:0;transform:translateY(4px);} to{opacity:1;transform:none;} }
         select option { background:#0d1117; }
         ::-webkit-scrollbar { width:2px; height:2px; }
         ::-webkit-scrollbar-track { background:transparent; }
-        ::-webkit-scrollbar-thumb { background:rgba(0,255,136,0.15); }
-        textarea:focus { border-color:rgba(0,255,136,0.20) !important; }
+        ::-webkit-scrollbar-thumb { background:rgba(0,255,136,0.14); }
+        textarea:focus { border-color:rgba(0,255,136,0.18) !important; }
       `}</style>
     </div>
   );

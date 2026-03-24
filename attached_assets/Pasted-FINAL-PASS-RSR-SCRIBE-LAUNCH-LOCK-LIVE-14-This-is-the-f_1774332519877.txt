@@ -1,0 +1,397 @@
+FINAL PASS — RSR SCRIBE LAUNCH LOCK (LIVE-14)
+
+This is the final launch pass.
+Do not partially implement.
+Do not preserve awkward legacy layout.
+Do not leave “good enough” behavior in place.
+
+MISSION:
+Finalize RSR SCRIBE into a deployable intelligence desk by:
+1. fixing the remaining layout/panel issues
+2. adding source traceability
+3. adding confidence reasoning
+4. adding deduplication / clustering
+5. tightening output language into sharper CIA-style deployment text
+6. preserving the current premium glass intel design
+
+This pass should produce a system ready to go live.
+
+━━━━━━━━━━━━━━━━━━━
+1. MAIN LAYOUT — FINAL PANEL STRUCTURE
+━━━━━━━━━━━━━━━━━━━
+
+Current problem:
+Some of the most important output is still visually compressed or placed in the wrong hierarchy.
+
+Fix the final layout like this:
+
+LEFT COLUMN (narrow / signal control)
+- Deployment State
+- BLACKDOG Risk
+- Deployment Checks
+- Lead Source
+- SENTRIX
+
+CENTER COLUMN (main intelligence desk)
+- Input Terminal
+- Output Mode
+- Scope / Window / Auto Scan controls
+- Intelligence Flow
+- X DEPLOYMENT DRAFT  ← move here into the main workspace
+- SAGE Analysis
+- System Log
+
+RIGHT COLUMN (support rail only)
+- Signal Candidates
+- X Deployment Control
+- Scribe Decision
+
+Rules:
+- X DEPLOYMENT DRAFT must sit between INTELLIGENCE FLOW and SAGE ANALYSIS
+- It must be large enough to actually review multiple posts comfortably
+- The right column must no longer contain the primary draft surface
+- Right rail is support / control only
+
+━━━━━━━━━━━━━━━━━━━
+2. PANEL SIZING + SCROLL DISCIPLINE
+━━━━━━━━━━━━━━━━━━━
+
+Lock the UI so it feels intentional.
+
+Requirements:
+- full app height locked to viewport
+- no runaway page growth
+- each column scrolls internally only where needed
+- no giant empty dead zones
+- no tiny compressed draft area
+
+Sizing guidance:
+- LEFT: ~260px
+- RIGHT: ~340–380px
+- CENTER: flexible / dominant
+
+Scrolling:
+- SENTRIX scrolls internally
+- Signal Candidates scroll internally
+- X Deployment Draft scrolls internally
+- SAGE remains readable without causing whole-page stretch
+- System Log has fixed max height and internal scroll
+
+━━━━━━━━━━━━━━━━━━━
+3. SOURCE TRACE PANEL (MANDATORY)
+━━━━━━━━━━━━━━━━━━━
+
+Add a new expandable panel called:
+
+SOURCE TRACE
+
+Place it directly below LEAD SOURCE in the left column, or as a sub-panel tied to the selected deployment card.
+
+It must show for the currently selected signal/post:
+- Original source URL
+- Source title
+- Timestamp
+- Host / feed
+- Ingest method (RSS / URL / MANUAL / CLUSTERED)
+- Extracted snippet (1–3 lines max)
+- Source count if clustered
+
+Behavior:
+- clicking a Signal Candidate updates Source Trace
+- clicking a deployment draft card updates Source Trace
+- if multiple sources contributed, show “multi-source cluster” and list the top 3 sources
+
+Purpose:
+The operator must always be able to see where the signal came from.
+
+━━━━━━━━━━━━━━━━━━━
+4. CONFIDENCE EXPLAINER (MANDATORY)
+━━━━━━━━━━━━━━━━━━━
+
+Add a structured confidence reasoning panel or expandable line within each deployment card and/or Source Trace.
+
+Format:
+
+CONFIDENCE REASONING
+- classification: CONFIRMED / LIKELY / CONTESTED / UNKNOWN
+- score: 0–100
+- why:
+  - multi-source alignment
+  - official statement present
+  - single-source only
+  - contradictory reporting
+  - pattern-consistent signal
+  - partial verification
+  - temporal freshness
+  - extraction quality
+
+This must be system-generated.
+Do not make it generic.
+Do not say “confidence based on analysis.”
+Actually explain why the score exists.
+
+Examples:
+- CONFIRMED because Reuters + official statement align on same event
+- LIKELY because single source aligns with known operational pattern but lacks secondary confirmation
+- CONTESTED because public claims conflict and no independent verification exists
+
+This must make the product feel reasoned, not arbitrary.
+
+━━━━━━━━━━━━━━━━━━━
+5. DEDUPLICATION + SIGNAL CLUSTERING (MANDATORY)
+━━━━━━━━━━━━━━━━━━━
+
+Current problem:
+Multiple feeds can repeat the same event with slightly different headlines.
+
+Fix this before SENTRIX.
+
+Add clustering pipeline:
+
+- normalize headlines + extracted text
+- group items by semantic similarity / shared event language
+- choose one lead source
+- preserve supporting sources in the cluster
+
+Each candidate may now be:
+- single-source signal
+- clustered multi-source signal
+
+UI rules:
+Signal Candidates should indicate:
+- SINGLE
+or
+- CLUSTER (3)
+
+Lead Source should indicate if selected item is clustered.
+Source Trace should show supporting sources.
+
+Confidence rules:
+- multi-source alignment should raise confidence
+- conflicting cluster contents should lower confidence
+- duplicate spam should never create multiple identical deployment posts
+
+Result:
+SCRIBE should feel like it finds signals, not headlines.
+
+━━━━━━━━━━━━━━━━━━━
+6. X DEPLOYMENT DRAFT — FINAL STRUCTURE
+━━━━━━━━━━━━━━━━━━━
+
+Keep the 4-line structure but sharpen it.
+
+Each post must render as:
+
+LINE 1:
+DOMAIN / LOCATION
+
+LINE 2:
+PRIMARY SIGNAL
+
+LINE 3:
+DETAIL / OPERATIONAL IMPLICATION
+
+LINE 4:
+SRC: [SOURCE TYPE OR CLUSTER] [CONFIDENCE]
+
+Rules:
+- no wasted words
+- no narrative phrasing
+- no generic summary language
+- no “according to”
+- no “the report states”
+- no “said”
+- no soft transitions
+- every line must add information
+
+If needed, LINE 3 can be omitted to stay under 280.
+But LINE 2 must stay strong.
+
+━━━━━━━━━━━━━━━━━━━
+7. CIA-STYLE OUTPUT TIGHTENING (MANDATORY)
+━━━━━━━━━━━━━━━━━━━
+
+Upgrade the generation prompt behavior.
+
+Target tone:
+- compressed
+- analytical
+- operational
+- cold
+- exact
+
+Not:
+- journalistic
+- story-like
+- casual
+- generic social media copy
+
+Every post should read like a professional field intelligence note adapted for X.
+
+Examples of desired style:
+
+MILITARY / SOUTHERN LEBANON
+Strike on fuel node near Rashidieh triggered secondary detonation and perimeter fire
+Forced displacement orders indicate pre-cleared operational zone and population shaping
+SRC: CLUSTER CONFIRMED
+
+ECONOMIC / PERSIAN GULF
+Crude repriced lower after strike delay reduced immediate supply shock expectations
+Volatility compression signals partial unwind of war premium, not normalization
+SRC: MIXED LIKELY
+
+GEOPOLITICAL / WASHINGTON; TEHRAN
+US signaling shifted from imminent action posture to coercive leverage framing
+Public optimism and Iranian denial create contested negotiation picture with misread risk
+SRC: CLUSTER CONTESTED
+
+Must feel more elite than current output.
+
+━━━━━━━━━━━━━━━━━━━
+8. MORE DETAIL — BUT CONTROLLED
+━━━━━━━━━━━━━━━━━━━
+
+User request:
+Add a bit more detail into prompts, but keep it CIA level.
+
+Do this by:
+- increasing specificity
+- improving noun quality
+- improving location clarity
+- improving operational implication
+- improving source reasoning
+
+Do NOT do this by:
+- making posts longer
+- adding fluff
+- becoming verbose
+
+Rule:
+Detail increases precision, not length.
+
+━━━━━━━━━━━━━━━━━━━
+9. CHARACTER LIMIT REMAINS HARD
+━━━━━━━━━━━━━━━━━━━
+
+Keep strict 280 enforcement.
+
+Rules:
+- no post may exceed 280
+- backend compresses before render
+- frontend blocks overage edits
+- POST TO X disabled if any post invalid
+- COPY only copies valid post text
+
+━━━━━━━━━━━━━━━━━━━
+10. X DEPLOYMENT CONTROL — FINAL UX
+━━━━━━━━━━━━━━━━━━━
+
+If X is authenticated:
+- collapse credential fields by default
+- show:
+  X STATUS: CONNECTED
+  AUTHENTICATED AS: @RSRINTEL
+  LAST VERIFIED: [time]
+  EDIT CREDENTIALS
+
+POST TO X must only unlock when:
+- valid mode requirements met
+- valid post package exists
+- all posts <= 280
+- X connected
+
+Show explicit status:
+- X NOT CONNECTED
+- X CONNECTED / CONTENT BLOCKED
+- X CONNECTED / READY TO DEPLOY
+- X CONNECTED / POSTING
+- X CONNECTED / POSTED
+
+━━━━━━━━━━━━━━━━━━━
+11. SIGNAL CANDIDATES — CLEANER
+━━━━━━━━━━━━━━━━━━━
+
+Improve candidate cards:
+- source
+- headline
+- age
+- cluster badge if clustered
+- confidence badge if available
+
+Selecting a candidate should:
+- rerun SCRIBE on that candidate/cluster
+- update Source Trace
+- update Lead Source
+- update draft + confidence reasoning
+
+This should feel intentional and fast.
+
+━━━━━━━━━━━━━━━━━━━
+12. SAGE ANALYSIS — KEEP BUT SHARPEN
+━━━━━━━━━━━━━━━━━━━
+
+Keep:
+- Domain
+- Location
+- Risk
+- What
+- Why
+- Mechanism
+- Changing
+
+But shorten text slightly and increase readability.
+No bloated prose.
+No wall of words.
+
+━━━━━━━━━━━━━━━━━━━
+13. SYSTEM LOG — KEEP REAL
+━━━━━━━━━━━━━━━━━━━
+
+System log should remain useful and short.
+
+Include:
+- feed fetch count
+- cluster count
+- lead source selected
+- sentrix classification count
+- blackdog score
+- total scan timing
+- deployment ready / blocked reason
+
+Keep it compact and operational.
+
+━━━━━━━━━━━━━━━━━━━
+14. VISUAL POLISH — FINAL
+━━━━━━━━━━━━━━━━━━━
+
+Maintain current premium direction.
+
+Adjust only if needed:
+- more restrained green
+- sharper typography hierarchy
+- slightly cleaner spacing
+- no oversized empty regions
+- no tiny draft review area
+
+The final result must feel like:
+a real intelligence info desk
+
+Not:
+a dashboard
+a toy terminal
+a social media generator
+
+━━━━━━━━━━━━━━━━━━━
+15. RESPONSE FORMAT
+━━━━━━━━━━━━━━━━━━━
+
+After implementation, return ONLY:
+
+1. exact files modified
+2. where X DEPLOYMENT DRAFT was moved in layout
+3. how SOURCE TRACE works
+4. how CONFIDENCE REASONING works
+5. how deduplication / clustering works
+6. how output prompt was tightened
+7. confirm 280 limit still hard-enforced
+8. confirm BUILD LIVE-14 is visible
