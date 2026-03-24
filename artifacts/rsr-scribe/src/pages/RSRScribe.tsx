@@ -100,14 +100,36 @@ function compressPost(p: IntelPost): string {
 function deriveConfidenceReason(post: IntelPost, clusterSize: number): string {
   if (post.confidenceReason) return post.confidenceReason;
   const multi = clusterSize > 1;
+  const cs    = clusterSize;
   switch (post.confidence) {
-    case "CONFIRMED": return multi ? "Multi-source cluster: independent feeds corroborate same operational event." : "Direct sourcing from established outlet aligns with verifiable fact pattern.";
-    case "LIKELY": return "Single-source report consistent with known operational pattern; secondary confirmation absent.";
-    case "CONTESTED": return "Conflicting claims or indicators present; no independent arbitration available.";
-    case "UNKNOWN": return "Insufficient source material for classification; signal extracted but unverified.";
-    default: return "Confidence classification pending evaluation.";
+    case "CONFIRMED":
+      return multi
+        ? `Multi-source alignment (${cs} feeds); no visible contradiction; event language consistent`
+        : "Official source; direct event reporting; corroborating pattern present";
+    case "LIKELY":
+      return multi
+        ? `Partial multi-source corroboration (${cs} feeds); no independent state confirmation; signal consistent with prior pattern`
+        : "Single-source report; no independent state confirmation; signal consistent with prior pattern";
+    case "CONTESTED":
+      return "Conflicting claims present; no independent arbitration; event claims in dispute";
+    case "UNKNOWN":
+      return "Unverified claim; source credibility unestablished; insufficient corroborating evidence";
+    default:
+      return "Classification pending";
   }
 }
+
+type SignalWeight = "HIGH" | "MEDIUM" | "LOW";
+function deriveWeight(post: IntelPost, clusterSize: number, bdScore: number): SignalWeight {
+  const confScore = post.confidence === "CONFIRMED" ? 3 : post.confidence === "LIKELY" ? 2 : post.confidence === "CONTESTED" ? 1 : 0;
+  const clusterBonus = clusterSize >= 4 ? 2 : clusterSize >= 2 ? 1 : 0;
+  const riskBonus = bdScore >= 70 ? 1 : 0;
+  const total = confScore + clusterBonus + riskBonus;
+  if (total >= 5) return "HIGH";
+  if (total >= 3) return "MEDIUM";
+  return "LOW";
+}
+const WEIGHT_COLOR: Record<SignalWeight, string> = { HIGH: RED, MEDIUM: YELLOW, LOW: "rgba(255,255,255,0.28)" };
 
 // ── ICONS ──────────────────────────────────────────────────────────────────────
 const ShieldIcon = () => <svg width="9" height="10" viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink:0 }}><path d="M12 1L3 5v6c0 5.25 3.75 10.15 9 11.25C17.25 21.15 21 16.25 21 11V5L12 1z" opacity="0.85"/></svg>;
@@ -407,7 +429,7 @@ export default function RSRScribe() {
       <div style={{ flexShrink: 0, position: "relative", zIndex: 10, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 18px", borderBottom: `1px solid ${BORDER}` }}>
         <div>
           <div style={{ fontSize: 12, letterSpacing: "0.22em", textTransform: "uppercase", color: "rgba(255,255,255,0.88)", fontWeight: 500 }}>RSR SCRIBE — SIGNAL DEPLOYMENT TERMINAL</div>
-          <div style={{ fontSize: 8, letterSpacing: "0.24em", textTransform: "uppercase", color: "rgba(255,255,255,0.24)", marginTop: 2 }}>FULL-SPECTRUM INTELLIGENCE ENGINE // BUILD LIVE-14</div>
+          <div style={{ fontSize: 8, letterSpacing: "0.24em", textTransform: "uppercase", color: "rgba(255,255,255,0.24)", marginTop: 2 }}>FULL-SPECTRUM INTELLIGENCE ENGINE // BUILD LIVE-15</div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 18, fontSize: 8, letterSpacing: "0.18em", textTransform: "uppercase" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 9px", border: `1px solid rgba(255,255,255,0.06)`, background: "rgba(0,0,0,0.20)" }}>
@@ -480,20 +502,32 @@ export default function RSRScribe() {
           <PanelBox style={{ flexShrink: 0 }}>
             <PH label="Source Trace" />
             <div style={{ padding: "8px 12px" }}>
-              {sourceRecord ? (
-                <div style={{ fontSize: 9, lineHeight: 1.85, color: "rgba(255,255,255,0.38)" }}>
-                  <div style={{ marginBottom: 6, color: "rgba(255,255,255,0.52)", lineHeight: 1.5 }}>{sourceRecord.summary?.slice(0, 160) || "No summary available."}</div>
-                  <div>URL <span style={{ color: "rgba(0,255,136,0.55)", wordBreak: "break-all" }}>{sourceRecord.sourceUrl?.replace(/^https?:\/\//, "").slice(0, 55) || "--"}</span></div>
-                  {(traceCandidate?.clusterSize ?? sourceRecord.clusterSize ?? 1) > 1 && (
-                    <div style={{ marginTop: 8, paddingTop: 7, borderTop: `1px solid rgba(255,255,255,0.04)` }}>
-                      <div style={{ fontSize: 8, letterSpacing: "0.18em", color: YELLOW, marginBottom: 4 }}>MULTI-SOURCE CLUSTER</div>
-                      {(traceCandidate?.clusterFeeds ?? sourceRecord.clusterFeeds ?? []).slice(0, 3).map((f, i) => (
-                        <div key={`${f}-${i}`} style={{ fontSize: 8, color: "rgba(255,255,255,0.30)" }}>· {f}</div>
-                      ))}
+              {sourceRecord ? (() => {
+                const cs = traceCandidate?.clusterSize ?? sourceRecord.clusterSize ?? 1;
+                const clusterStrength = cs >= 4 ? "4+ SOURCE" : cs === 3 ? "3-SOURCE" : cs === 2 ? "2-SOURCE" : "SINGLE";
+                const clusterColor   = cs >= 3 ? ACCENT : cs === 2 ? "#86efac" : "rgba(255,255,255,0.26)";
+                const feeds = traceCandidate?.clusterFeeds ?? sourceRecord.clusterFeeds ?? [];
+                return (
+                  <div style={{ fontSize: 9, lineHeight: 1.85, color: "rgba(255,255,255,0.38)" }}>
+                    <div style={{ marginBottom: 7, color: "rgba(255,255,255,0.52)", lineHeight: 1.5, fontSize: 9 }}>{sourceRecord.summary?.slice(0, 150) || "No summary available."}</div>
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"3px 8px", marginBottom:6 }}>
+                      <div>SRC COUNT <span style={{ color: clusterColor }}>{cs}</span></div>
+                      <div>STRENGTH <span style={{ color: clusterColor, letterSpacing:"0.10em" }}>{clusterStrength}</span></div>
+                      <div>TYPE <span style={{ color:"rgba(255,255,255,0.50)" }}>{sourceRecord.sourceType || "--"}</span></div>
+                      <div>TIME {sourceRecord.timestamp ? relTime(sourceRecord.timestamp) : "--"}</div>
                     </div>
-                  )}
-                </div>
-              ) : (
+                    <div style={{ marginBottom:4 }}>URL <span style={{ color: "rgba(0,255,136,0.50)", wordBreak:"break-all" }}>{sourceRecord.sourceUrl?.replace(/^https?:\/\//, "").slice(0, 52) || "--"}</span></div>
+                    {cs > 1 && feeds.length > 0 && (
+                      <div style={{ marginTop: 7, paddingTop: 6, borderTop: `1px solid rgba(255,255,255,0.04)` }}>
+                        <div style={{ fontSize: 7, letterSpacing: "0.18em", color: YELLOW, marginBottom: 4 }}>SUPPORTING FEEDS</div>
+                        {feeds.slice(0, 4).map((f, i) => (
+                          <div key={`${f}-${i}`} style={{ fontSize: 8, color: "rgba(255,255,255,0.30)" }}>· {f}</div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })() : (
                 <div style={{ fontSize: 9, color: "rgba(255,255,255,0.24)" }}>{inputLocked ? "Fetching source..." : "No source loaded"}</div>
               )}
             </div>
@@ -602,6 +636,7 @@ export default function RSRScribe() {
                 const counterColor = charLen > 260 ? RED : charLen > 240 ? YELLOW : "rgba(255,255,255,0.18)";
                 const overLimit = charLen > MAX_CHARS;
                 const reason = deriveConfidenceReason(post, currentClusterSize);
+                const weight = deriveWeight(post, currentClusterSize, blackDog?.score ?? 0);
                 return (
                   <div key={`post-${i}`} style={{ background: GLASS2, border: `1px solid ${overLimit ? "rgba(224,85,85,0.20)" : "rgba(255,255,255,0.05)"}`, animation: "fadeUp 200ms ease" }}>
                     {/* Card header */}
@@ -609,7 +644,10 @@ export default function RSRScribe() {
                       <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                         <span style={{ fontSize:8, color:"rgba(255,255,255,0.22)", letterSpacing:"0.10em" }}>#{i+1}</span>
                         <span style={{ fontSize:8, letterSpacing:"0.14em", textTransform:"uppercase", color:CONF_COLOR[post.confidence] }}>{post.confidence}</span>
-                        {currentClusterSize > 1 && <span style={{ fontSize:7, color:YELLOW, border:`1px solid rgba(232,167,58,0.25)`, padding:"1px 4px", letterSpacing:"0.12em" }}>CLUSTER {currentClusterSize}</span>}
+                        {currentClusterSize > 1
+                          ? <span style={{ fontSize:7, color:YELLOW, border:`1px solid rgba(232,167,58,0.25)`, padding:"1px 4px", letterSpacing:"0.12em" }}>CLUSTER {currentClusterSize}</span>
+                          : <span style={{ fontSize:7, color:"rgba(255,255,255,0.22)", border:`1px solid rgba(255,255,255,0.08)`, padding:"1px 4px", letterSpacing:"0.12em" }}>SINGLE</span>}
+                        <span style={{ fontSize:7, color:WEIGHT_COLOR[weight], border:`1px solid ${WEIGHT_COLOR[weight]}44`, padding:"1px 5px", letterSpacing:"0.14em" }}>WEIGHT {weight}</span>
                       </div>
                       <button onClick={() => copyPost(i)} style={{ display:"flex", alignItems:"center", gap:3, color: copiedIdx===i ? ACCENT : "rgba(255,255,255,0.24)", background:"transparent", border:`1px solid ${copiedIdx===i ? BORDA : "rgba(255,255,255,0.05)"}`, padding:"2px 6px", cursor:"pointer", fontFamily:MONO, fontSize:8 }}>
                         {copiedIdx===i ? <CheckIcon/> : <CopyIcon/>}
@@ -712,7 +750,9 @@ export default function RSRScribe() {
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                         <span style={{ fontSize: 7, letterSpacing: "0.12em", color: ACCENT }}>{c.feedName}</span>
-                        {cs > 1 && <span style={{ fontSize: 6, color: YELLOW, border: `1px solid rgba(232,167,58,0.25)`, padding: "1px 4px", letterSpacing: "0.10em" }}>CLUSTER {cs}</span>}
+                        {cs > 1
+                          ? <span style={{ fontSize: 6, color: YELLOW, border: `1px solid rgba(232,167,58,0.25)`, padding: "1px 4px", letterSpacing: "0.10em" }}>CLUSTER {cs}</span>
+                          : <span style={{ fontSize: 6, color: "rgba(255,255,255,0.20)", border: `1px solid rgba(255,255,255,0.07)`, padding: "1px 4px", letterSpacing: "0.10em" }}>SINGLE</span>}
                       </div>
                       <span style={{ fontSize: 7, color: "rgba(255,255,255,0.22)" }}>{relTime(c.publishedAt)}</span>
                     </div>

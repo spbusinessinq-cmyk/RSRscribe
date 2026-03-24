@@ -57,62 +57,82 @@ SIGNAL DOMAINS — detect every domain that applies:
 5. INFORMATION/NARRATIVE — propaganda vector shift, state media alignment, coordinated messaging campaigns
 6. STRATEGIC POSTURE — force readiness, escalation ladder movement, deterrence signaling, ROE changes
 
-LANGUAGE RULES — HARD ENFORCEMENT:
-FORBIDDEN: "said", "according to", "the report states", "it was noted", "reportedly", "sources suggest", "it is believed", "in a significant development", "highlighting", "underscoring"
-MANDATORY TONE: compressed • operational • exact • cold • field note, not journalism
-EVERY WORD must carry information. No transitions. No hedging. No soft language.
-Active voice only. Subject + action + object. Military precision.
-Never include raw URLs in any field.
+LANGUAGE RULES — ZERO TOLERANCE:
+FORBIDDEN WORDS AND PHRASES: "said", "according to", "the report states", "it was noted", "reportedly",
+"sources suggest", "it is believed", "in a significant development", "highlighting", "underscoring",
+"has been reported", "confirmed by", "appeared to", "seems to", "indicated that"
+MANDATORY: compressed · operational · exact · cold · field note precision, never journalism
+EVERY WORD carries information. No hedging. No transitions. No filler. Active voice only.
+URLs: never include in any field.
 
-AXION POST QUALITY RULES:
-- DOMAIN/LOCATION: be precise — no vague regions. Use "Southern Lebanon", not "the region".
-- SIGNAL (LINE 2): Primary tactical development. Compressed active voice. One tight sentence. No narrative.
-- DETAIL (LINE 3): Operational implication or mechanism — what changes, what is threatened, what is signaled.
-- Target signal field: 60–120 chars. Target detail field: 40–100 chars. Together: 100–220 chars max.
-- If you can say it in 8 words instead of 15, use 8.
+SIGNAL (LINE 2) — STRUCTURAL RULES:
+- ONE main subject
+- ONE main action
+- ONE main event
+- Max 120 characters
+- Do NOT chain clauses with semicolons or "and" into separate sub-events
+- Do NOT merge two different events into one signal line
+- BAD: "Iran launched missiles at Israel; Gulf states reported drone interceptions across their airspace"
+- GOOD: "Iran launched ballistic missiles toward central Israel"
+- BAD: "Sanctions imposed as diplomacy collapses and talks end with no agreement reached by either party"
+- GOOD: "US imposed new sanctions package after diplomatic talks collapsed"
 
-CONFIDENCE REASONING — generate a precise 1-sentence explanation per post:
-- CONFIRMED: cite corroborating sources or official statements
-- LIKELY: note the alignment with pattern but absence of secondary confirmation
-- CONTESTED: identify the specific conflict between claims or actors
-- UNKNOWN: state what is missing or unverifiable
+DETAIL (LINE 3) — OPERATIONAL IMPLICATION:
+- What changes, what is threatened, what is signaled
+- One compressed sentence, under 100 characters
+- Mechanism or consequence only — no restatement of LINE 2
+
+LOCATION — PRECISION REQUIRED:
+- Never "the region", "the area", "internationally"
+- Use: "Southern Lebanon", "Northern Gaza", "Eastern Ukraine — Zaporizhzhia Oblast", "Washington; Tehran"
+- Multiple locations: semicolon-separated, most relevant first
+
+CONFIDENCE REASONING — FACTOR-BASED (mandatory per post):
+Format: "Factor; Factor; Factor" — not a narrative sentence
+Use ONLY these analytical factors — never use source names or "reports":
+CONFIRMED factors: "multi-source alignment", "official statement present", "secondary corroboration", "event pattern consistent", "no visible contradiction"
+LIKELY factors: "single-source report", "no independent state confirmation", "signal consistent with prior pattern", "no contradictory evidence", "partial corroboration"
+CONTESTED factors: "conflicting claims present", "no independent arbitration", "event claims in dispute", "contradictory state positions", "unresolved actor dispute"
+UNKNOWN factors: "unverified claim", "source credibility unestablished", "insufficient corroborating evidence", "temporal gap present", "origin unclear"
+Example: "Single-source report; no independent state confirmation; signal consistent with prior strike pattern"
+Example: "Multi-source alignment across regional feeds; no visible contradiction; timing and event language match"
 
 OUTPUT: Valid JSON only — no markdown, no explanation text`;
 
 function modeInstruction(mode: OutputMode): string {
   switch (mode) {
     case "SINGLE_SIGNAL":
-      return "Produce exactly 1 post in axion — the single highest-impact signal from the source. Most operationally significant development only.";
+      return "Produce exactly 1 post in axion — highest-impact signal only. Most operationally significant development.";
     case "RAPID_FIRE":
-      return "Produce 3–5 posts in axion. Ultra-compressed. Signal is one sentence max. Detail is one phrase. No verbosity. Prioritize speed and density.";
+      return "Produce 3–5 posts in axion. Each signal is ONE sentence max. Detail is ONE phrase. Ultra-compressed. No verbosity.";
     case "LONGFORM_INTEL":
-      return "Produce 6–8 posts in axion. Full domain coverage. Maximum detail depth. Stack signals across all applicable domains. Do not truncate any domain.";
+      return "Produce 6–8 posts in axion. Full domain coverage. Maximum specificity per post. Every applicable domain must appear.";
     case "BREAKING_ALERT":
-      return "Produce 1–3 posts in axion. BREAKING format: domain header + one compressed alert signal + one detail sentence. Move fast. Prioritize immediacy.";
+      return "Produce 1–3 posts in axion. BREAKING format: sharp header + one compressed alert signal + one compressed implication. Move fast.";
     case "THREAD":
     default:
-      return "Produce 4–6 posts in axion. Each post MUST represent a DIFFERENT signal domain. P1: primary military/movement event. P2: government/policy response. P3: economic or infrastructure effect. P4+: strategic assessment or secondary signals. No domain repetition across posts.";
+      return "Produce 4–6 posts in axion. Each post MUST be a DIFFERENT signal domain. P1: primary military/movement event. P2: government/policy response. P3: economic or infrastructure impact. P4+: strategic posture or secondary signals. No domain repetition.";
   }
 }
 
 const USER_PROMPT = (headline: string, body: string, sourceHost: string, scope: string, mode: OutputMode, clusterSize: number) =>
   `HEADLINE: ${headline}
-SOURCE: ${sourceHost}
+SOURCE HOST: ${sourceHost}
 SCOPE: ${scope}
 MODE: ${mode}
-SOURCE CLUSTER: ${clusterSize} source${clusterSize > 1 ? "s" : ""} (${clusterSize > 1 ? "multi-source — treat as higher confidence baseline" : "single source"})
+SOURCE CLUSTER: ${clusterSize} source${clusterSize > 1 ? `s` : ""} — ${clusterSize > 1 ? "multi-source signal; raise confidence baseline" : "single source; conservative confidence"}
 
 CONTENT:
 ${body}
 
 ${modeInstruction(mode)}
 
-Return this exact JSON structure:
+Return this exact JSON:
 
 {
   "sentrix": [
     {
-      "text": "Specific factual signal — min 40 chars, compressed, intelligence tone, no URLs",
+      "text": "Specific factual signal, min 40 chars, compressed, no URLs, intelligence tone",
       "classification": "CONFIRMED|LIKELY|CONTESTED|UNKNOWN",
       "label": "CONFIRMED|LIKELY|CONTESTED|UNKNOWN",
       "confidence": 0-100,
@@ -120,28 +140,28 @@ Return this exact JSON structure:
     }
   ],
   "sage": {
-    "WHAT": "Core event — one compressed intelligence sentence, no hedging",
-    "WHY": "Underlying driver — cause or strategic motive",
-    "MECHANISM": "How it is unfolding — process, method, or vector",
-    "CONSTRAINTS": "Limiting factors on escalation, response, or continuation",
-    "CHANGING": "What is shifting from prior state — specific delta",
-    "LOCATION": "Specific geographic locations from source",
+    "WHAT": "Core event — one compressed intelligence sentence, no hedging, active voice",
+    "WHY": "Underlying driver — causal mechanism or strategic motive, not description",
+    "MECHANISM": "How it is unfolding — process, method, or operational vector",
+    "CONSTRAINTS": "Limiting factors on escalation, continuation, or response",
+    "CHANGING": "What is shifting from prior state — specific operational delta",
+    "LOCATION": "Specific geographic locations — never 'the region'",
     "DOMAIN": "Primary domain: Military|Geopolitical|Economic|Cyber|Information|Strategic"
   },
   "axion": [
     {
-      "domain": "DOMAIN/SUBDOMAIN (e.g. MILITARY/MOVEMENT, GEOPOLITICAL/POLICY, ECONOMIC/MARKET, CYBER/INFRASTRUCTURE, INFORMATION/NARRATIVE, STRATEGIC POSTURE)",
-      "location": "SPECIFIC COUNTRY, REGION, OR OPERATIONAL ZONE — no vague generics",
-      "signal": "Primary development — compressed, active voice, tactical, under 120 chars",
-      "detail": "Operational implication or mechanism — one tight sentence, under 100 chars",
+      "domain": "DOMAIN/SUBDOMAIN (MILITARY/MOVEMENT, GEOPOLITICAL/POLICY, ECONOMIC/MARKET, CYBER/INFRASTRUCTURE, INFORMATION/NARRATIVE, STRATEGIC POSTURE)",
+      "location": "SPECIFIC OPERATIONAL ZONE — no generic regions, no omissions",
+      "signal": "ONE subject + ONE action + ONE event, under 120 chars, active voice",
+      "detail": "Operational implication or mechanism, under 100 chars, not a restatement",
       "source": "official | OSINT | local | mixed | cluster",
       "confidence": "CONFIRMED|LIKELY|CONTESTED|UNKNOWN",
-      "confidenceReason": "Precise 1-sentence explanation of why this confidence level — cite what aligns, conflicts, or is absent"
+      "confidenceReason": "Factor; Factor; Factor — analytical factors only, no source names, no narrative"
     }
   ],
   "blackDog": {
     "level": "LOW|ELEVATED|HIGH|CRITICAL",
-    "reason": "Specific risk rationale from source — no generic language, no 'significant concern'",
+    "reason": "Specific operational risk from source — one compressed sentence, no generic language",
     "score": 0-100
   }
 }`;
@@ -169,7 +189,7 @@ export async function runPipeline(
     return { ...empty, blockedReason: "Source text too short for analysis" };
   }
 
-  logs.push(`[SENTRIX] signal classification`);
+  logs.push(`[SENTRIX] signal classification — cluster: ${clusterSize}`);
   logs.push(`[SAGE] analytical framework`);
   logs.push(`[AXION] building output — mode: ${outputMode}`);
   logs.push(`[BLACK DOG] risk evaluation`);
@@ -181,7 +201,7 @@ export async function runPipeline(
       max_completion_tokens: 4096,
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: USER_PROMPT(headline, body.slice(0, 3200), sourceHost, scope, outputMode, clusterSize) },
+        { role: "user",   content: USER_PROMPT(headline, body.slice(0, 3200), sourceHost, scope, outputMode, clusterSize) },
       ],
     });
     const choice = completion.choices[0];
@@ -225,15 +245,13 @@ export async function runPipeline(
 
   const blackDog: RiskOutput = parsed.blackDog ?? { level: "PENDING", reason: "Evaluation incomplete", score: 0 };
 
-  logs.push(`[SENTRIX] ${sentrix.length} signals extracted`);
+  logs.push(`[SENTRIX] ${sentrix.length} signals`);
   logs.push(`[SAGE] complete — domain: ${sage.DOMAIN}`);
   logs.push(`[AXION] ${axion.length} posts — ${outputMode}`);
   logs.push(`[BLACK DOG] ${blackDog.level} (score: ${blackDog.score})`);
 
-  const minSentrix = outputMode === "SINGLE_SIGNAL" || outputMode === "BREAKING_ALERT" ? 1
-    : outputMode === "RAPID_FIRE" ? 2 : 3;
-  const minAxion = outputMode === "SINGLE_SIGNAL" || outputMode === "BREAKING_ALERT" ? 1
-    : outputMode === "RAPID_FIRE" ? 2 : 3;
+  const minSentrix = outputMode === "SINGLE_SIGNAL" || outputMode === "BREAKING_ALERT" ? 1 : outputMode === "RAPID_FIRE" ? 2 : 3;
+  const minAxion   = outputMode === "SINGLE_SIGNAL" || outputMode === "BREAKING_ALERT" ? 1 : outputMode === "RAPID_FIRE" ? 2 : 3;
 
   let blockedReason = "";
   if (sentrix.length < minSentrix) {

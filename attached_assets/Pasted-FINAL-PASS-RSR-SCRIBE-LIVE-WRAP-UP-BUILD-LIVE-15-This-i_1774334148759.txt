@@ -1,0 +1,310 @@
+FINAL PASS — RSR SCRIBE LIVE WRAP-UP (BUILD LIVE-15)
+
+This is the final wrap-up pass before git + deploy.
+Do not redesign the app.
+Do not move panels again.
+Do not introduce mock data.
+Do not change the working layout structure.
+
+MISSION:
+Finish SCRIBE by eliminating single-source bias, broadening live ingestion, tightening final deployment language, and adding final source-confidence credibility signals.
+
+Keep the current UI structure.
+Only improve ingestion quality, output sharpness, and final trust signals.
+
+━━━━━━━━━━━━━━━━━━━
+1. EXPAND LIVE FEED COVERAGE (CRITICAL)
+━━━━━━━━━━━━━━━━━━━
+
+Update the live feed map so AUTO SCAN is not over-dependent on Al Jazeera.
+
+Add / maintain real RSS or equivalent open feeds across categories.
+
+GLOBAL:
+- Reuters World
+- BBC World
+- AP News
+- NYT World
+- Guardian World
+- Al Jazeera World
+
+CONFLICT / SECURITY:
+- Defense News
+- Military Times
+- Long War Journal
+- Institute for the Study of War
+- Times of Israel
+- Al Arabiya English
+- Haaretz if parser is stable
+
+MARKETS / ECONOMIC:
+- Bloomberg Markets RSS if stable
+- FT world/markets if stable
+- Reuters Markets / Business
+- BBC Business
+
+CYBER / INFRASTRUCTURE:
+- BleepingComputer
+- The Hacker News
+- CSO / cybersecurity feed if stable
+
+ENERGY / SHIPPING:
+- Reuters energy/business
+- relevant shipping / trade / commodities feeds if stable
+
+Rules:
+- keep only stable parsers
+- no broken feeds
+- no XML/JSON parse errors reaching frontend
+- server-side normalize everything into the same candidate schema
+
+━━━━━━━━━━━━━━━━━━━
+2. BALANCED SOURCE SELECTION
+━━━━━━━━━━━━━━━━━━━
+
+Current problem:
+Lead source selection still leans too heavily toward one publisher.
+
+Fix ranking logic so candidate selection weighs:
+- recency
+- source diversity
+- cluster size
+- domain relevance
+- extraction quality
+- confidence potential
+
+Do not always choose the same publisher just because it parsed first.
+
+If 3 sources cover the same event:
+- pick strongest lead source
+- preserve supporting sources in cluster
+- show cluster support in Source Trace
+
+Goal:
+SCRIBE should feel like it finds the strongest signal, not just the first feed item.
+
+━━━━━━━━━━━━━━━━━━━
+3. DEDUP + CLUSTER HARDENING
+━━━━━━━━━━━━━━━━━━━
+
+Keep clustering, but tighten it.
+
+Requirements:
+- dedup exact URL matches
+- cluster near-duplicate headlines and same-event summaries
+- keep one lead item per cluster
+- preserve cluster metadata:
+  - clusterSize
+  - clusterFeeds
+  - clusterUrls
+  - sourceCount
+
+Signal Candidates must show:
+- SINGLE
+or
+- CLUSTER (N)
+
+Lead Source and Source Trace must reflect whether the selected item is:
+- single-source
+- clustered multi-source signal
+
+━━━━━━━━━━━━━━━━━━━
+4. SOURCE TRACE — FINAL CREDIBILITY UPGRADE
+━━━━━━━━━━━━━━━━━━━
+
+Keep the current Source Trace panel, but add:
+
+- SOURCE COUNT: X
+- CLUSTER STRENGTH: SINGLE / 2-SOURCE / 3-SOURCE / 4+ SOURCE
+- supporting feeds list when clustered
+- original source title
+- original source URL
+- timestamp
+- ingest type
+- extracted snippet
+
+This must update when:
+- a candidate is selected
+- a deployment draft card is selected
+
+Purpose:
+Operator must instantly know what backs the signal.
+
+━━━━━━━━━━━━━━━━━━━
+5. CONFIDENCE REASONING — FINAL TIGHTENING
+━━━━━━━━━━━━━━━━━━━
+
+Current WHY strips are still slightly too narrative.
+
+Replace them with factor-based analyst reasoning.
+
+Do NOT use:
+- source names in WHY
+- “reports”
+- “according to”
+- “the article says”
+- narrative phrasing
+
+Use this style:
+
+WHY:
+Single-source report; no independent state confirmation; signal consistent with prior strike pattern
+
+WHY:
+Multi-source alignment across regional feeds; no visible contradiction; timing and event language match same operational event
+
+WHY:
+Official statement present; secondary reporting aligned; low contradiction
+
+Keep it to one sentence.
+Make it analytical, not descriptive.
+
+━━━━━━━━━━━━━━━━━━━
+6. X DEPLOYMENT DRAFT — FINAL OUTPUT SHARPENING
+━━━━━━━━━━━━━━━━━━━
+
+Keep current 4-line structure.
+
+Each post must be:
+
+LINE 1:
+DOMAIN / LOCATION
+
+LINE 2:
+Primary signal — short, sharp, operational
+
+LINE 3:
+Implication / detail — compressed
+
+LINE 4:
+SRC: [SINGLE or CLUSTER] [CONFIRMED / LIKELY / CONTESTED / UNKNOWN]
+
+Hard rules:
+- no “said”
+- no “according to”
+- no “reportedly”
+- no “sources suggest”
+- no “it is believed”
+- no “highlighting”
+- no “underscoring”
+- no journalistic filler
+- no storytelling tone
+
+Every post must read like:
+field note / intelligence note / compressed deployment text
+
+━━━━━━━━━━━━━━━━━━━
+7. LINE 2 COMPRESSION FIX
+━━━━━━━━━━━━━━━━━━━
+
+Current problem:
+Some primary signal lines still try to do too much in one sentence.
+
+Fix generation rules:
+
+LINE 2 must carry:
+- one main action
+- one main subject
+- one main event
+
+Do not overload with chained clauses.
+
+Bad:
+“Iran launched a new missile barrage at Israel; Gulf states reported repeated drone and missile interceptions across their airspace.”
+
+Better:
+“Iran launched a missile barrage toward Israel; Gulf airspace saw repeated interception activity.”
+
+Make line 2 cleaner everywhere.
+
+━━━━━━━━━━━━━━━━━━━
+8. ADD SIGNAL WEIGHT (OPTIONAL BUT IMPLEMENT NOW)
+━━━━━━━━━━━━━━━━━━━
+
+Add a small weight label to each deployment card:
+
+WEIGHT:
+- LOW
+- MEDIUM
+- HIGH
+
+Derived from:
+- confidence score
+- cluster size
+- domain criticality
+- blackdog risk context
+
+Display near the post header.
+
+Purpose:
+Separate:
+- truth/confidence
+from
+- operational importance
+
+━━━━━━━━━━━━━━━━━━━
+9. KEEP 280 HARD LIMIT
+━━━━━━━━━━━━━━━━━━━
+
+Do not loosen this.
+
+Maintain:
+- backend compression
+- frontend max length
+- canPost gating
+- invalid post blocking
+
+Every final editable deployment text must stay <= 280.
+
+If needed:
+- compress detail first
+- keep signal intact
+- preserve source/confidence footer
+
+━━━━━━━━━━━━━━━━━━━
+10. SPEED / SCAN QUALITY
+━━━━━━━━━━━━━━━━━━━
+
+Do not massively increase latency while adding feeds.
+
+Rules:
+- fetch feeds in parallel
+- keep per-scope feed count prioritized
+- ignore unstable or empty feeds quickly
+- rank then trim candidate pool
+- no huge slowdowns from feed bloat
+
+Goal:
+Better coverage without killing responsiveness.
+
+━━━━━━━━━━━━━━━━━━━
+11. DO NOT CHANGE WORKING LAYOUT
+━━━━━━━━━━━━━━━━━━━
+
+Important:
+Do not rebuild the layout again.
+Do not move the draft again.
+Do not change the core visual structure.
+
+Keep:
+- left signal/control column
+- center intelligence desk
+- right support rail
+
+Only improve data quality, credibility, and output sharpness.
+
+━━━━━━━━━━━━━━━━━━━
+12. RESPONSE FORMAT
+━━━━━━━━━━━━━━━━━━━
+
+After implementation, return ONLY:
+
+1. exact files modified
+2. what feeds were added and grouped by category
+3. how lead-source bias was reduced
+4. how clustering / source count now works
+5. how Source Trace was upgraded
+6. how WHY logic was tightened
+7. whether signal weight was added
+8. confirm no layout rebuild occurred
+9. confirm BUILD LIVE-15 is visible

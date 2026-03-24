@@ -15,20 +15,37 @@ export type RawCandidate = {
 
 type FeedDef = { name: string; url: string; scope: string[]; priority: number };
 
+// ── FEED REGISTRY ─────────────────────────────────────────────────────────────
 const FEEDS: FeedDef[] = [
-  { name: "BBC World",         url: "https://feeds.bbci.co.uk/news/world/rss.xml",          scope: ["GLOBAL", "CONFLICT"], priority: 2 },
-  { name: "Al Jazeera World",  url: "https://www.aljazeera.com/xml/rss/all.xml",             scope: ["GLOBAL", "CONFLICT"], priority: 2 },
-  { name: "AP World",          url: "https://feeds.apnews.com/apnews/worldnews",             scope: ["GLOBAL", "CONFLICT"], priority: 1 },
-  { name: "Reuters World",     url: "https://feeds.reuters.com/Reuters/worldNews",           scope: ["GLOBAL", "CONFLICT"], priority: 3 },
-  { name: "BBC Business",      url: "https://feeds.bbci.co.uk/news/business/rss.xml",        scope: ["GLOBAL", "ENERGY"],   priority: 2 },
-  { name: "Reuters Business",  url: "https://feeds.reuters.com/reuters/businessNews",        scope: ["GLOBAL", "ENERGY"],   priority: 1 },
-  { name: "The Hacker News",   url: "https://thehackernews.com/feeds/posts/default",         scope: ["CYBER"],              priority: 1 },
-  { name: "BleepingComputer",  url: "https://www.bleepingcomputer.com/feed/",                scope: ["CYBER"],              priority: 2 },
-  { name: "Krebs on Security", url: "https://krebsonsecurity.com/feed/",                     scope: ["CYBER"],              priority: 3 },
-  { name: "AP Technology",     url: "https://feeds.apnews.com/apnews/technology",            scope: ["CYBER"],              priority: 3 },
+  // GLOBAL ────────────────────────────────────────────────────────────────────
+  { name: "AP World",             url: "https://feeds.apnews.com/apnews/worldnews",                    scope: ["GLOBAL", "CONFLICT"], priority: 1 },
+  { name: "Reuters World",        url: "https://feeds.reuters.com/Reuters/worldNews",                  scope: ["GLOBAL", "CONFLICT"], priority: 1 },
+  { name: "BBC World",            url: "https://feeds.bbci.co.uk/news/world/rss.xml",                  scope: ["GLOBAL", "CONFLICT"], priority: 2 },
+  { name: "Guardian World",       url: "https://www.theguardian.com/world/rss",                        scope: ["GLOBAL", "CONFLICT"], priority: 2 },
+  { name: "Al Jazeera World",     url: "https://www.aljazeera.com/xml/rss/all.xml",                    scope: ["GLOBAL", "CONFLICT"], priority: 2 },
+  { name: "NYT World",            url: "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",       scope: ["GLOBAL"],             priority: 3 },
+
+  // CONFLICT / SECURITY ───────────────────────────────────────────────────────
+  { name: "Times of Israel",      url: "https://www.timesofisrael.com/feed/",                          scope: ["CONFLICT"],           priority: 1 },
+  { name: "Long War Journal",     url: "https://www.longwarjournal.org/feed",                          scope: ["CONFLICT"],           priority: 2 },
+  { name: "Defense News",         url: "https://www.defensenews.com/arc/outboundfeeds/rss/",           scope: ["CONFLICT"],           priority: 3 },
+  { name: "Military Times",       url: "https://www.militarytimes.com/arc/outboundfeeds/rss/",         scope: ["CONFLICT"],           priority: 3 },
+
+  // ENERGY / MARKETS ──────────────────────────────────────────────────────────
+  { name: "Reuters Business",     url: "https://feeds.reuters.com/reuters/businessNews",               scope: ["ENERGY", "GLOBAL"],   priority: 1 },
+  { name: "BBC Business",         url: "https://feeds.bbci.co.uk/news/business/rss.xml",               scope: ["ENERGY", "GLOBAL"],   priority: 1 },
+  { name: "AP Business",          url: "https://feeds.apnews.com/apnews/business",                     scope: ["ENERGY"],             priority: 2 },
+  { name: "Guardian Business",    url: "https://www.theguardian.com/business/rss",                     scope: ["ENERGY"],             priority: 3 },
+
+  // CYBER / INFRASTRUCTURE ────────────────────────────────────────────────────
+  { name: "The Hacker News",      url: "https://thehackernews.com/feeds/posts/default",                scope: ["CYBER"],              priority: 1 },
+  { name: "BleepingComputer",     url: "https://www.bleepingcomputer.com/feed/",                       scope: ["CYBER"],              priority: 1 },
+  { name: "Krebs on Security",    url: "https://krebsonsecurity.com/feed/",                            scope: ["CYBER"],              priority: 2 },
+  { name: "Wired Security",       url: "https://www.wired.com/feed/category/security/latest/rss",      scope: ["CYBER"],              priority: 2 },
+  { name: "AP Technology",        url: "https://feeds.apnews.com/apnews/technology",                   scope: ["CYBER"],              priority: 3 },
 ];
 
-const MAX_FEEDS_PER_SCOPE = 4;
+const MAX_FEEDS_PER_SCOPE = 6;
 const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_", textNodeName: "#text" });
 
 type CacheEntry = { data: RawCandidate[]; expiresAt: number };
@@ -40,7 +57,7 @@ const STOPWORDS = new Set([
   "the","a","an","in","on","at","to","for","of","and","or","is","are","was","were",
   "be","been","have","has","had","will","would","could","should","may","might","its",
   "this","that","with","from","by","as","over","after","before","about","into","also",
-  "than","more","when","who","which","what","where","how","new","says","say",
+  "than","more","when","who","which","what","where","how","new","says","say","after",
 ]);
 
 function extractKeywords(text: string): Set<string> {
@@ -95,7 +112,7 @@ function extractItems(parsed: Record<string, unknown>): Array<{
   description?: string; summary?: string; pubDate?: string;
   published?: string; updated?: string; "dc:date"?: string; content?: string;
 }> {
-  const rss = (parsed as Record<string, Record<string, unknown>>)?.rss;
+  const rss     = (parsed as Record<string, Record<string, unknown>>)?.rss;
   const channel = rss?.channel as Record<string, unknown> | undefined;
   if (channel) {
     const items = channel.item;
@@ -132,21 +149,21 @@ async function fetchFeed(feed: FeedDef, windowMs: number): Promise<RawCandidate[
 
   const res = await fetch(feed.url, {
     headers: { "User-Agent": "RSR-Scribe-Feed-Reader/4.0" },
-    signal: AbortSignal.timeout(7000),
+    signal: AbortSignal.timeout(6000),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-  const xml  = await res.text();
+  const xml    = await res.text();
   const parsed = parser.parse(xml) as Record<string, unknown>;
-  const items = extractItems(parsed);
+  const items  = extractItems(parsed);
   const cutoff = Date.now() - windowMs;
   const candidates: RawCandidate[] = [];
 
   for (const item of items) {
     const title = item.title;
-    const link = resolveLink(item.link);
+    const link  = resolveLink(item.link);
     if (!title || !link) continue;
-    const rawDate = item.pubDate || item.published || item.updated || item["dc:date"] || new Date().toISOString();
+    const rawDate    = item.pubDate || item.published || item.updated || item["dc:date"] || new Date().toISOString();
     const publishedAt = new Date(String(rawDate)).toISOString();
     if (isNaN(new Date(publishedAt).getTime())) continue;
     if (new Date(publishedAt).getTime() < cutoff) continue;
@@ -172,15 +189,24 @@ export const WINDOW_MAP: Record<string, number> = {
 
 export async function fetchCandidates(scope: string, windowCode: string, logs: string[]): Promise<RawCandidate[]> {
   const windowMs = WINDOW_MAP[windowCode] ?? WINDOW_MAP["6H"];
-  const relevant = FEEDS.filter((f) => f.scope.includes(scope)).sort((a, b) => a.priority - b.priority).slice(0, MAX_FEEDS_PER_SCOPE);
+  const relevant = FEEDS
+    .filter((f) => f.scope.includes(scope))
+    .sort((a, b) => a.priority - b.priority)
+    .slice(0, MAX_FEEDS_PER_SCOPE);
 
   const t0 = Date.now();
   const results = await Promise.allSettled(
     relevant.map(async (feed) => {
       const ft = Date.now();
-      const items = await fetchFeed(feed, windowMs);
-      logs.push(`[FEED] ${feed.name}: ${items.length} items (${Date.now() - ft}ms)`);
-      return items;
+      try {
+        const items = await fetchFeed(feed, windowMs);
+        logs.push(`[FEED] ${feed.name}: ${items.length} items (${Date.now() - ft}ms)`);
+        return items;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "failed";
+        logs.push(`[FEED] ${feed.name}: error — ${msg}`);
+        return [] as RawCandidate[];
+      }
     })
   );
   logs.push(`[TIMER] feed fetch: ${Date.now() - t0}ms`);
@@ -188,44 +214,63 @@ export async function fetchCandidates(scope: string, windowCode: string, logs: s
   const all: RawCandidate[] = [];
   for (const r of results) { if (r.status === "fulfilled") all.push(...r.value); }
 
-  // Exact dedup by URL
+  // Exact URL dedup
   const seenUrls = new Set<string>();
   const deduped = all.filter((c) => { if (seenUrls.has(c.url)) return false; seenUrls.add(c.url); return true; });
 
   // Semantic clustering
   const clustered = clusterCandidates(deduped);
   const multiCluster = clustered.filter((c) => (c.clusterSize ?? 1) > 1).length;
-  logs.push(`[CLUSTER] ${clustered.length} signals (${multiCluster} multi-source clusters) from ${deduped.length} raw items`);
+  logs.push(`[CLUSTER] ${clustered.length} signals — ${multiCluster} multi-source, ${deduped.length} raw items`);
 
   return clustered;
 }
 
+// ── SOURCE-DIVERSE RANKING ────────────────────────────────────────────────────
 export function rankCandidates(candidates: RawCandidate[], scope: string): RawCandidate[] {
   const URGENCY_TERMS = [
-    "breaking", "alert", "warning", "critical", "emergency", "urgent",
-    "attack", "crisis", "killed", "dead", "explosion", "strike", "invasion",
-    "escalat", "threat", "sanctions", "hack", "breach", "leak", "shutdown",
+    "breaking","alert","warning","critical","emergency","urgent",
+    "attack","crisis","killed","dead","explosion","strike","invasion",
+    "escalat","threat","sanctions","hack","breach","leak","shutdown",
   ];
   const SCOPE_BOOSTS: Record<string, string[]> = {
-    CONFLICT: ["war", "conflict", "military", "troops", "ceasefire", "nato", "battle", "missile", "attack", "russia", "ukraine", "israel", "iran", "china"],
-    ENERGY:   ["oil", "gas", "energy", "barrel", "opec", "pipeline", "lng", "crude", "power", "electricity", "fuel", "carbon", "climate"],
-    CYBER:    ["hack", "breach", "malware", "ransomware", "vuln", "cve", "exploit", "infra", "attack", "zero-day", "phishing", "backdoor"],
+    CONFLICT: ["war","conflict","military","troops","ceasefire","nato","battle","missile","attack","russia","ukraine","israel","iran","china","hamas","hezbollah","drone"],
+    ENERGY:   ["oil","gas","energy","barrel","opec","pipeline","lng","crude","power","electricity","fuel","carbon","climate","shipping","tanker"],
+    CYBER:    ["hack","breach","malware","ransomware","vuln","cve","exploit","infra","attack","zero-day","phishing","backdoor","intrusion"],
     GLOBAL:   [],
   };
 
   const boostTerms = SCOPE_BOOSTS[scope] || [];
   const now = Date.now();
 
-  return candidates
-    .map((c) => {
-      const lower = (c.headline + " " + c.summary).toLowerCase();
-      const ageFactor = Math.max(0, 1 - (now - new Date(c.publishedAt).getTime()) / (24 * 3_600_000));
-      const urgencyCount = URGENCY_TERMS.filter((t) => lower.includes(t)).length;
-      const scopeCount = boostTerms.filter((t) => lower.includes(t)).length;
-      const clusterBonus = Math.min(((c.clusterSize ?? 1) - 1) * 6, 18); // up to +18 for multi-source
-      const score = Math.round(ageFactor * 50 + urgencyCount * 8 + scopeCount * 10 + clusterBonus);
-      return { ...c, score };
-    })
-    .sort((a, b) => (b as typeof b & { score: number }).score - (a as typeof a & { score: number }).score)
-    .slice(0, 12) as (RawCandidate & { score: number })[];
+  // Initial score pass
+  const scored = candidates.map((c) => {
+    const lower    = (c.headline + " " + c.summary).toLowerCase();
+    const ageFactor = Math.max(0, 1 - (now - new Date(c.publishedAt).getTime()) / (24 * 3_600_000));
+    const urgency  = URGENCY_TERMS.filter((t) => lower.includes(t)).length;
+    const domain   = boostTerms.filter((t) => lower.includes(t)).length;
+    const cluster  = Math.min(((c.clusterSize ?? 1) - 1) * 7, 21); // up to +21 for 4+ source cluster
+    const score    = Math.round(ageFactor * 50 + urgency * 8 + domain * 10 + cluster);
+    return { ...c, score };
+  }).sort((a, b) => b.score - a.score);
+
+  // Source-diverse greedy selection — penalty: 22 pts per additional pick from same host
+  const hostCount = new Map<string, number>();
+  const result: (RawCandidate & { score: number })[] = [];
+  const pool = [...scored];
+
+  while (result.length < 12 && pool.length > 0) {
+    let bestIdx = -1, bestAdj = -Infinity;
+    for (let i = 0; i < pool.length; i++) {
+      const penalty = (hostCount.get(pool[i].sourceHost) ?? 0) * 22;
+      const adj = pool[i].score - penalty;
+      if (adj > bestAdj) { bestAdj = adj; bestIdx = i; }
+    }
+    if (bestIdx === -1) break;
+    const picked = pool.splice(bestIdx, 1)[0];
+    hostCount.set(picked.sourceHost, (hostCount.get(picked.sourceHost) ?? 0) + 1);
+    result.push(picked);
+  }
+
+  return result as (RawCandidate & { score: number })[];
 }
